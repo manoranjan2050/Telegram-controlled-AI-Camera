@@ -75,6 +75,25 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   `[Detect Objects][Save][Delete]` buttons (`/received_ai`, `/received_save`,
   `/received_delete`), reusing the same AI/sanitization/delete paths as
   everywhere else.
+- **Phase 17/18 — Motion Detection + AI Alert**: `telegramp4_motion`
+  (GPIO ISR -> task, `/arm`/`/disarm`/`/motion`), full motion -> capture ->
+  AI-filter -> Telegram-broadcast pipeline with a configurable cooldown;
+  new `telegramp4_security_get_allowed_ids()` for broadcasting to every
+  whitelisted chat. PIR GPIO defaults unset pending hardware verification.
+
+- **Phase 19 — GPIO / IoT Control**: `telegramp4_gpio` (whitelist-only pin
+  control), `/gpio` (list + toggle buttons), `/gpio <pin> on|off`.
+
+### Fixed
+- `/video` was implemented in Phase 9 but never actually registered as a
+  command (caught by an "unused function" build warning once a real build
+  finally succeeded) - now wired up in `app_main()`.
+- `TELEGRAMP4_MOTION_ALERT_COOLDOWN_S`'s Kconfig `depends on
+  TELEGRAMP4_MOTION_ENABLED` meant the option (and its CONFIG_ macro) didn't
+  exist at all while motion detection was disabled (the default), breaking
+  the build for code that references the constant unconditionally. Removed
+  the dependency - it's just an int, harmless to have defined even when
+  motion detection is off.
 
 ### Fixed
 - Local ESP-IDF v5.4 tooling (`confgen`/kconfiglib) silently produced an

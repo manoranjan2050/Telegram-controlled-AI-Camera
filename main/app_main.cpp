@@ -20,6 +20,11 @@
 #include "telegramp4_audio.h"
 #include "telegramp4_stt.h"
 #include "telegramp4_ai.h"
+#include "telegramp4_motion.h"
+#include "telegramp4_gpio.h"
+#include "telegramp4_security.h"
+#include <ctime>
+#include <strings.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <cstdlib>
@@ -655,6 +660,172 @@ static void handler_ai(int64_t chat_id, const char *args)
     telegramp4_telegram_send_message(chat_id, msg);
 }
 
+/* --- Motion detection + AI alert (Phase 17/18) --- */
+
+static int64_t s_last_motion_alert_s = -1000000; /* far in the past so the first trigger always fires */
+
+static void broadcast_to_all_authorized(const char *text, const uint8_t *photo_data, size_t photo_len)
+{
+    int64_t ids[16];
+    int n = telegramp4_security_get_allowed_ids(ids, 16);
+    for (int i = 0; i < n; i++) {
+        telegramp4_telegram_send_message(ids[i], text);
+        if (photo_data) {
+            telegramp4_telegram_send_photo(ids[i], photo_data, photo_len);
+        }
+    }
+}
+
+/**
+ * Called from telegramp4_motion's own task (never ISR context) when armed and
+ * motion fires. Cooldown prevents Telegram spam from repeated triggers.
+ */
+static void on_motion_detected(void)
+{
+    int64_t now_s = esp_timer_get_time() / 1000000;
+    if (now_s - s_last_motion_alert_s < CONFIG_TELEGRAMP4_MOTION_ALERT_COOLDOWN_S) {
+        ESP_LOGI(TAG, "Motion detected but within cooldown, ignoring");
+        return;
+    }
+
+    telegramp4_camera_frame_t frame = {0};
+    if (telegramp4_camera_capture(&frame) != ESP_OK) {
+        ESP_LOGW(TAG, "Motion detected but camera unavailable, cannot verify/alert");
+        return;
+    }
+
+    /* If AI is enabled and actually runs, filter for a "person" label before
+     * alerting. If AI is disabled, or enabled but not yet working (Phase 14's
+     * stub), fall back to alerting on raw motion - a security camera that
+     * stays silent because its AI is unverified defeats the point, and we
+     * say so honestly in the message rather than fabricating a confidence
+     * number. */
+    telegramp4_ai_result_t result = {0};
+    bool ai_ran = telegramp4_ai_is_enabled() && telegramp4_ai_process_image(frame.data, frame.len, &result) == ESP_OK;
+    bool person_found = !ai_ran; /* unfiltered alert if AI didn't actually run */
+    int person_confidence = -1;
+    if (ai_ran) {
+        person_found = false;
+        for (int i = 0; i < result.count; i++) {
+            if (strstr(result.detections[i].label, "erson") != NULL) { /* "Person"/"person" */
+                person_found = true;
+                person_confidence = result.detections[i].confidence_pct;
+                break;
+            }
+        }
+    }
+
+    if (!person_found) {
+        telegramp4_camera_release_frame(&frame);
+        return; /* AI ran and found no person - don't alert */
+    }
+
+    s_last_motion_alert_s = now_s;
+    int64_t uptime_s = now_s;
+    char msg[192];
+    if (person_confidence >= 0) {
+        snprintf(msg, sizeof(msg),
+            "\xF0\x9F\x9A\xA8 Person detected\n\nConfidence: %d%%\nUptime at detection: %02d:%02d:%02d",
+            person_confidence, (int) (uptime_s / 3600), (int) ((uptime_s / 60) % 60), (int) (uptime_s % 60));
+    } else {
+        snprintf(msg, sizeof(msg),
+            "\xF0\x9F\x9A\xA8 Motion detected (AI filtering unavailable)\n\nUptime at detection: %02d:%02d:%02d",
+            (int) (uptime_s / 3600), (int) ((uptime_s / 60) % 60), (int) (uptime_s % 60));
+    }
+    broadcast_to_all_authorized(msg, frame.data, frame.len);
+    telegramp4_camera_release_frame(&frame);
+}
+
+static void handler_arm(int64_t chat_id, const char *args)
+{
+    (void) args;
+    telegramp4_motion_arm();
+    telegramp4_telegram_send_message(chat_id, "Motion detection: ARMED");
+}
+
+static void handler_disarm(int64_t chat_id, const char *args)
+{
+    (void) args;
+    telegramp4_motion_disarm();
+    telegramp4_telegram_send_message(chat_id, "Motion detection: DISARMED");
+}
+
+static void handler_motion_status(int64_t chat_id, const char *args)
+{
+    (void) args;
+    char msg[96];
+    snprintf(msg, sizeof(msg), "Motion detection: %s\nAI filtering: %s",
+              telegramp4_motion_is_armed() ? "ARMED" : "DISARMED",
+              telegramp4_ai_is_enabled() ? "ON" : "OFF");
+    telegramp4_telegram_send_message(chat_id, msg);
+}
+
+/* --- GPIO control (Phase 19) --- */
+
+static void send_gpio_menu(int64_t chat_id)
+{
+    int pins[TELEGRAMP4_GPIO_MAX_WHITELISTED];
+    int n = telegramp4_gpio_get_whitelist(pins, TELEGRAMP4_GPIO_MAX_WHITELISTED);
+    if (n == 0) {
+        telegramp4_telegram_send_message(chat_id,
+            "No GPIOs configured. Set TELEGRAMP4_GPIO_WHITELIST in idf.py menuconfig.");
+        return;
+    }
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON *keyboard = cJSON_AddArrayToObject(root, "inline_keyboard");
+    for (int i = 0; i < n; i++) {
+        cJSON *row = cJSON_CreateArray();
+        char label[24];
+        snprintf(label, sizeof(label), "GPIO %d [%s]", pins[i], telegramp4_gpio_get(pins[i]) ? "ON" : "OFF");
+        char callback[32];
+        snprintf(callback, sizeof(callback), "/gpio_toggle %d", pins[i]);
+        cJSON *btn = cJSON_CreateObject();
+        cJSON_AddStringToObject(btn, "text", label);
+        cJSON_AddStringToObject(btn, "callback_data", callback);
+        cJSON_AddItemToArray(row, btn);
+        cJSON_AddItemToArray(keyboard, row);
+    }
+    char *keyboard_json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    telegramp4_telegram_send_with_keyboard(chat_id, "\xF0\x9F\x94\x8C GPIO Control", keyboard_json);
+    free(keyboard_json);
+}
+
+/* /gpio, /gpio <pin> on|off */
+static void handler_gpio(int64_t chat_id, const char *args)
+{
+    if (args[0] == '\0') {
+        send_gpio_menu(chat_id);
+        return;
+    }
+    int pin = 0;
+    char state[8] = {0};
+    if (sscanf(args, "%d %7s", &pin, state) != 2) {
+        telegramp4_telegram_send_message(chat_id, "Usage: /gpio <pin> on|off");
+        return;
+    }
+    if (!telegramp4_gpio_is_whitelisted(pin)) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C GPIO not whitelisted.");
+        return;
+    }
+    bool on = (strcasecmp(state, "on") == 0);
+    telegramp4_gpio_set(pin, on);
+    char msg[32];
+    snprintf(msg, sizeof(msg), "GPIO %d: %s", pin, on ? "ON" : "OFF");
+    telegramp4_telegram_send_message(chat_id, msg);
+}
+
+static void handler_gpio_toggle(int64_t chat_id, const char *args)
+{
+    int pin = atoi(args);
+    if (!telegramp4_gpio_is_whitelisted(pin)) {
+        return;
+    }
+    telegramp4_gpio_set(pin, !telegramp4_gpio_get(pin));
+    send_gpio_menu(chat_id);
+}
+
 /* /photo_info (Phase 10) */
 static void handler_photo_info(int64_t chat_id, const char *args)
 {
@@ -813,9 +984,22 @@ extern "C" void app_main(void)
     telegramp4_telegram_set_photo_received_handler(on_photo_received);
     telegramp4_telegram_set_voice_received_handler(on_voice_received);
     telegramp4_telegram_register_command("/record", handler_record);
+    telegramp4_telegram_register_command("/video", handler_video);
 
     telegramp4_ai_init(); /* no-op / returns error cleanly if AI disabled or unverified - see telegramp4_ai.h */
     telegramp4_telegram_register_command("/ai", handler_ai);
+
+    esp_err_t motion_ret = telegramp4_motion_init(on_motion_detected);
+    if (motion_ret != ESP_OK) {
+        ESP_LOGI(TAG, "Motion detection not active: %s", esp_err_to_name(motion_ret));
+    }
+    telegramp4_telegram_register_command("/arm", handler_arm);
+    telegramp4_telegram_register_command("/disarm", handler_disarm);
+    telegramp4_telegram_register_command("/motion", handler_motion_status);
+
+    telegramp4_gpio_init();
+    telegramp4_telegram_register_command("/gpio", handler_gpio);
+    telegramp4_telegram_register_command("/gpio_toggle", handler_gpio_toggle);
 
     esp_err_t telegram_ret = telegramp4_telegram_start();
     if (telegram_ret != ESP_OK) {

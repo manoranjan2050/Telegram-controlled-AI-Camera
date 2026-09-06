@@ -68,15 +68,15 @@ which is gitignored.
 
 | Option | Description | Default |
 |---|---|---|
-| `MOTION_ENABLED` | Enable PIR motion detection | TBD |
-| `MOTION_PIR_GPIO` | GPIO connected to PIR sensor | TBD |
-| `MOTION_ALERT_COOLDOWN_S` | Minimum seconds between Telegram alerts | 30 |
+| `TELEGRAMP4_MOTION_ENABLED` | Enable PIR motion detection | n |
+| `TELEGRAMP4_MOTION_PIR_GPIO` | GPIO connected to PIR sensor | -1 (unset) |
+| `TELEGRAMP4_MOTION_ALERT_COOLDOWN_S` | Minimum seconds between Telegram alerts | 30 |
 
 ## GPIO (Phase 19)
 
 | Option | Description | Default |
 |---|---|---|
-| `GPIO_WHITELIST` | Comma-separated list of pins exposed to `/gpio` | *(empty)* |
+| `TELEGRAMP4_GPIO_WHITELIST` | Comma-separated list of pins exposed to `/gpio` | *(empty)* |
 
 ## Debug
 

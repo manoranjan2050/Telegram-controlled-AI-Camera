@@ -395,6 +395,10 @@ static void handler_help(int64_t chat_id, const char *args)
         "/delete <filename> - delete a photo\n"
         "/photo_info - info about the last received file\n"
         "/photo_files - list received files\n"
+        "/arm - arm motion detection\n"
+        "/disarm - disarm motion detection\n"
+        "/motion - motion detection status\n"
+        "/gpio [pin] [on|off] - control whitelisted GPIOs\n"
         "Send a photo directly to save it to the device.");
 }
 

@@ -36,9 +36,9 @@ Track progress here so a new session knows where to resume.
 - [x] Phase 14 — AI Vision (abstraction written; model/framework choice unverified, stub pending hardware)
 - [x] Phase 15 — Telegram AI Workflow (/ai wired to camera+AI, honest error until Phase 14 lands)
 - [x] Phase 16 — AI on Telegram Photos (Detect/Save/Delete buttons on received images)
-- [ ] Phase 17 — Motion Detection
-- [ ] Phase 18 — Motion AI Alert
-- [ ] Phase 19 — GPIO / IoT Control
+- [x] Phase 17 — Motion Detection (ISR->task pattern, /arm /disarm /motion; PIR GPIO unverified, defaults unset)
+- [x] Phase 18 — Motion AI Alert (cooldown + broadcast to all whitelisted chats; honest fallback when AI unverified)
+- [x] Phase 19 — GPIO / IoT Control (whitelist-enforced /gpio + inline toggle buttons)
 - [ ] Phase 20 — Display
 - [ ] Phase 21 — OTA
 - [ ] Phase 22 — System Status

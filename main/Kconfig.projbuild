@@ -146,7 +146,41 @@ menu "TelegramP4 Configuration"
 
     endmenu
 
-    # Phase 17+ adds more submenus/options here as each subsystem's Kconfig
+    menu "Motion"
+
+        config TELEGRAMP4_MOTION_ENABLED
+            bool "Enable PIR motion detection"
+            default n
+
+        config TELEGRAMP4_MOTION_PIR_GPIO
+            int "PIR sensor GPIO"
+            default -1
+            depends on TELEGRAMP4_MOTION_ENABLED
+            help
+                -1 means unset. You must set this to a GPIO you've confirmed
+                is safe/available on your board before enabling motion
+                detection - see docs/hardware.md. Assumes an active-high PIR
+                output (e.g. HC-SR501-style); verify against your module.
+
+        config TELEGRAMP4_MOTION_ALERT_COOLDOWN_S
+            int "Minimum seconds between motion Telegram alerts"
+            default 30
+
+    endmenu
+
+    menu "GPIO"
+
+        config TELEGRAMP4_GPIO_WHITELIST
+            string "Whitelisted GPIOs for /gpio control (comma-separated)"
+            default ""
+            help
+                Only these pins can be controlled via /gpio. Empty means no
+                pins are exposed. Never add a pin here without confirming
+                it's safe to drive as a generic output on your board.
+
+    endmenu
+
+    # Phase 20+ adds more submenus/options here as each subsystem's Kconfig
     # options are introduced. See docs/configuration.md for the full option
     # reference and which phase adds each one.
 

@@ -37,6 +37,18 @@ static void parse_allowed_ids(void)
     }
 }
 
+int telegramp4_security_get_allowed_ids(int64_t *out_ids, int max)
+{
+    if (s_allowed_count < 0) {
+        parse_allowed_ids();
+    }
+    int n = s_allowed_count < max ? s_allowed_count : max;
+    for (int i = 0; i < n; i++) {
+        out_ids[i] = s_allowed_ids[i];
+    }
+    return n;
+}
+
 bool telegramp4_security_is_authorized(int64_t chat_id)
 {
     if (s_allowed_count < 0) {

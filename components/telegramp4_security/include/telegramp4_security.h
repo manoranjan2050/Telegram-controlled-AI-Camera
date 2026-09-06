@@ -24,6 +24,12 @@ extern "C" {
  */
 bool telegramp4_security_is_authorized(int64_t chat_id);
 
+/**
+ * Writes up to `max` allowed chat IDs into `out_ids`, returns the count.
+ * Used by motion alerts (Phase 18) to broadcast to every authorized user.
+ */
+int telegramp4_security_get_allowed_ids(int64_t *out_ids, int max);
+
 #ifdef __cplusplus
 }
 #endif
