@@ -49,8 +49,25 @@ menu "TelegramP4 Configuration"
 
     endmenu
 
-    # Phase 5+ adds "Camera", "Storage", etc. submenus/options here as each
-    # subsystem's Kconfig options are introduced. See docs/configuration.md for
-    # the full option reference and which phase adds each one.
+    menu "Camera"
+
+        config TELEGRAMP4_CAMERA_JPEG_QUALITY
+            int "JPEG quality (0-63, lower = higher quality)"
+            default 12
+            range 0 63
+
+        config TELEGRAMP4_CAMERA_FRAME_WIDTH
+            int "Capture frame width"
+            default 800
+
+        config TELEGRAMP4_CAMERA_FRAME_HEIGHT
+            int "Capture frame height"
+            default 600
+
+    endmenu
+
+    # Phase 7+ adds "Storage", etc. submenus/options here as each subsystem's
+    # Kconfig options are introduced. See docs/configuration.md for the full
+    # option reference and which phase adds each one.
 
 endmenu

@@ -9,6 +9,16 @@ Product page: https://www.dfrobot.com/product-2915.html
 > actually verify each detail against current DFRobot/Espressif documentation and,
 > where possible, real hardware. Do not treat unconfirmed rows below as fact — they
 > are known-unknowns to check, not assumptions to build against.
+>
+> **Status as of the initial code-writing pass (2026-09-06):** web search/fetch
+> tools were unavailable in that development session, so none of the rows below
+> could be checked against live DFRobot/Espressif documentation. Camera, MicroSD,
+> microphone, display, and GPIO-whitelist code was written as an abstraction
+> layer with Kconfig-exposed, placeholder pin values rather than guessed pin
+> numbers — see each component's header comment for what's stubbed vs. real. This
+> table must be filled in from the actual product page/wiki/schematic
+> (https://www.dfrobot.com/product-2915.html) and confirmed on real hardware
+> before trusting any of it.
 
 | Item | Value | Verified? |
 |---|---|---|

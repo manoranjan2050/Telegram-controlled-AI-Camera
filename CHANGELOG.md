@@ -27,5 +27,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   `dispatch_command()` used by typed commands, and stub handlers for every
   not-yet-built menu item (`/video`, `/photos`, `/record`, `/ai`, `/storage`,
   `/settings`).
+- **Phase 5 — Camera**: `telegramp4_camera` abstraction and Camera Kconfig
+  submenu, `/photo_test` command. Actual sensor bring-up is an honest stub
+  pending hardware verification (web docs were unreachable while writing this
+  phase) — see docs/lessons/05-camera.md for the exact follow-up steps.
 
 See [CLAUDE.md](CLAUDE.md) for the live progress checklist.

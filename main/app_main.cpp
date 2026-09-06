@@ -4,13 +4,36 @@
  * Phase 0 scope only: bring up logging/NVS and print the startup banner.
  * Wi-Fi, Telegram, camera, etc. are added in later phases — see docs/PHASES.md.
  */
+#include <cstdio>
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "telegramp4_board.h"
 #include "telegramp4_wifi.h"
 #include "telegramp4_telegram.h"
+#include "telegramp4_camera.h"
 
 static const char *TAG = "TAG_SYSTEM";
+
+/**
+ * /photo_test (Phase 5) - captures one frame and reports the result. Until the
+ * camera driver is verified on real hardware (see telegramp4_camera.h), this
+ * will report the honest "camera unavailable" error rather than fake success.
+ */
+static void handler_photo_test(int64_t chat_id, const char *args)
+{
+    (void) args;
+    telegramp4_camera_frame_t frame = {0};
+    esp_err_t err = telegramp4_camera_capture(&frame);
+    if (err != ESP_OK) {
+        telegramp4_telegram_send_message(chat_id,
+            "\xE2\x9D\x8C Camera unavailable.\nCheck camera connection.");
+        return;
+    }
+    char msg[64];
+    snprintf(msg, sizeof(msg), "Frame captured. JPEG size: %u bytes", (unsigned) frame.len);
+    telegramp4_telegram_send_message(chat_id, msg);
+    telegramp4_camera_release_frame(&frame);
+}
 
 extern "C" void app_main(void)
 {
@@ -32,6 +55,12 @@ extern "C" void app_main(void)
     } else {
         ESP_LOGW(TAG, "Boot WiFi connect timed out; will keep retrying in the background.");
     }
+
+    esp_err_t camera_ret = telegramp4_camera_init();
+    if (camera_ret != ESP_OK) {
+        ESP_LOGW(TAG, "Camera not available: %s (device continues without it)", esp_err_to_name(camera_ret));
+    }
+    telegramp4_telegram_register_command("/photo_test", handler_photo_test);
 
     esp_err_t telegram_ret = telegramp4_telegram_start();
     if (telegram_ret != ESP_OK) {
