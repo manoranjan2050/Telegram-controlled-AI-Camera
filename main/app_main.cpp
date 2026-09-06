@@ -8,6 +8,7 @@
 #include "nvs_flash.h"
 #include "telegramp4_board.h"
 #include "telegramp4_wifi.h"
+#include "telegramp4_telegram.h"
 
 static const char *TAG = "TAG_SYSTEM";
 
@@ -32,5 +33,10 @@ extern "C" void app_main(void)
         ESP_LOGW(TAG, "Boot WiFi connect timed out; will keep retrying in the background.");
     }
 
-    ESP_LOGI(TAG, "Phase 1 bootstrap complete.");
+    esp_err_t telegram_ret = telegramp4_telegram_start();
+    if (telegram_ret != ESP_OK) {
+        ESP_LOGE(TAG, "Telegram bot failed to start: %s", esp_err_to_name(telegram_ret));
+    }
+
+    ESP_LOGI(TAG, "Phase 2 bootstrap complete.");
 }

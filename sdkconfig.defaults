@@ -19,3 +19,10 @@ CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/partitions.csv"
 # PSRAM/camera/video/AI-specific sdkconfig options are added in Phase 5/14 once the
 # exact FireBeetle 2 ESP32-P4 memory configuration is verified (see docs/hardware.md)
 # rather than guessed here.
+
+# Phase 2: Telegram HTTPS client uses the ESP-IDF bundled root CA certificate
+# store for TLS validation instead of pinning Telegram's certificate directly
+# (avoids breakage if Telegram rotates their cert/CA). Certificate validation is
+# never disabled — see docs/security.md.
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y

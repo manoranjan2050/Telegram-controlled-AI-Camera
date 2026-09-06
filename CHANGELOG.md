@@ -15,5 +15,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   and Lesson 01.
 - **Phase 1 — WiFi**: `telegramp4_wifi` component (STA mode, Kconfig-based
   credentials, auto-reconnect, IP/RSSI query), wired into `app_main`, and Lesson 02.
+- **Phase 2 — Telegram Basic**: `telegramp4_telegram` component (HTTPS Bot API
+  client with cert-bundle TLS validation, `getMe`/`getUpdates` long polling,
+  `/start` `/help` `/status`), Telegram Kconfig submenu, and Lesson 03.
 
 See [CLAUDE.md](CLAUDE.md) for the live progress checklist.

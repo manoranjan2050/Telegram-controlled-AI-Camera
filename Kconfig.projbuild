@@ -27,8 +27,21 @@ menu "TelegramP4 Configuration"
 
     endmenu
 
-    # Phase 2+ adds "Telegram", "Camera", "Storage", etc. submenus here as each
-    # subsystem's Kconfig options are introduced. See docs/configuration.md for
-    # the full option reference and which phase adds each one.
+    menu "Telegram"
+
+        config TELEGRAMP4_TELEGRAM_BOT_TOKEN
+            string "Telegram Bot Token"
+            default "123456789:REPLACE_WITH_YOUR_BOT_TOKEN"
+            help
+                Get this from @BotFather (see docs/telegram-bot-setup.md). Stored
+                only in your local sdkconfig (gitignored) — never commit a real
+                value, never logged by the firmware.
+
+    endmenu
+
+    # Phase 3+ adds "Allowed Chat IDs", "Camera", "Storage", etc. submenus/options
+    # here as each subsystem's Kconfig options are introduced. See
+    # docs/configuration.md for the full option reference and which phase adds
+    # each one.
 
 endmenu

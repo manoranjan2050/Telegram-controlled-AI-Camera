@@ -19,9 +19,8 @@ which is gitignored.
 
 | Option | Description | Default |
 |---|---|---|
-| `TELEGRAM_BOT_TOKEN` | Bot API token from BotFather | placeholder `123456789:REPLACE_WITH_YOUR_BOT_TOKEN` |
-| `TELEGRAM_ALLOWED_CHAT_IDS` | Comma-separated whitelist of chat IDs | *(empty — required)* |
-| `TELEGRAM_POLL_TIMEOUT_S` | Long-poll timeout | TBD |
+| `TELEGRAMP4_TELEGRAM_BOT_TOKEN` | Bot API token from BotFather | placeholder `123456789:REPLACE_WITH_YOUR_BOT_TOKEN` |
+| `TELEGRAMP4_TELEGRAM_ALLOWED_CHAT_IDS` | Comma-separated whitelist of chat IDs (Phase 3) | *(empty — required)* |
 
 ## Camera (Phase 5)
 
