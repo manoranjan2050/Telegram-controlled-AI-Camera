@@ -30,7 +30,7 @@ Track progress here so a new session knows where to resume.
 - [x] Phase 8 — Photo Gallery (code written; build verification in progress)
 - [x] Phase 9 — Video (task-based /video handler + abstraction written; encoder is a stub pending Phase 5 hardware verification)
 - [x] Phase 10 — Receive Photo From Telegram (getFile download, size-capped, /photo_info /photo_files)
-- [ ] Phase 11 — Audio Recording
+- [x] Phase 11 — Audio Recording (task-based /record handler + abstraction written; mic driver is a stub pending hardware verification)
 - [ ] Phase 12 — Receive Telegram Voice
 - [ ] Phase 13 — Voice Commands
 - [ ] Phase 14 — AI Vision

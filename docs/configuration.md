@@ -41,9 +41,9 @@ which is gitignored.
 
 | Option | Description | Default |
 |---|---|---|
-| `AUDIO_MIN_DURATION_S` | Minimum recording length | TBD |
-| `AUDIO_DEFAULT_DURATION_S` | Default recording length | TBD |
-| `AUDIO_MAX_DURATION_S` | Maximum recording length | TBD |
+| `TELEGRAMP4_AUDIO_MIN_DURATION_S` | Minimum recording length | 1 |
+| `TELEGRAMP4_AUDIO_DEFAULT_DURATION_S` | Default recording length | 10 |
+| `TELEGRAMP4_AUDIO_MAX_DURATION_S` | Maximum recording length | 60 |
 
 ## Storage (Phase 7)
 

@@ -388,7 +388,7 @@ static void handler_help(int64_t chat_id, const char *args)
         "/photo - take a photo\n"
         "/video [seconds] - record a video\n"
         "/photos - browse recent photos\n"
-        "/record - not implemented yet (Phase 11)\n"
+        "/record [seconds] - record audio\n"
         "/ai - not implemented yet (Phase 15)\n"
         "/files - list files on SD card\n"
         "/storage - SD card usage\n"
@@ -425,10 +425,9 @@ static void handler_not_implemented(int64_t chat_id, const char *phase_note)
  * depend on either. */
 /* /photos itself is registered by main/app_main.cpp from Phase 8 onward, since
  * it needs telegramp4_storage - this component doesn't depend on the SD module. */
-static void handler_record_stub(int64_t chat_id, const char *args)  { (void) args; handler_not_implemented(chat_id, "Phase 11"); }
 static void handler_ai_stub(int64_t chat_id, const char *args)      { (void) args; handler_not_implemented(chat_id, "Phase 15"); }
-/* /storage itself is registered by main/app_main.cpp from Phase 7 onward, since
- * it needs telegramp4_storage - this component doesn't depend on the SD module. */
+/* /storage, /video, /record itself are registered by main/app_main.cpp, since
+ * each needs a hardware component this component doesn't depend on. */
 static void handler_settings_stub(int64_t chat_id, const char *args)
 {
     (void) args;
@@ -441,7 +440,6 @@ static void register_builtin_commands(void)
     telegramp4_telegram_register_command("/help", handler_help);
     telegramp4_telegram_register_command("/menu", handler_menu);
     telegramp4_telegram_register_command("/status", handler_status);
-    telegramp4_telegram_register_command("/record", handler_record_stub);
     telegramp4_telegram_register_command("/ai", handler_ai_stub);
     telegramp4_telegram_register_command("/settings", handler_settings_stub);
 }

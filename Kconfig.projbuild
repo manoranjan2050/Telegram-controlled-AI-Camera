@@ -94,7 +94,23 @@ menu "TelegramP4 Configuration"
 
     endmenu
 
-    # Phase 11+ adds more submenus/options here as each subsystem's Kconfig
+    menu "Audio"
+
+        config TELEGRAMP4_AUDIO_MIN_DURATION_S
+            int "Minimum recording length (seconds)"
+            default 1
+
+        config TELEGRAMP4_AUDIO_DEFAULT_DURATION_S
+            int "Default recording length (seconds)"
+            default 10
+
+        config TELEGRAMP4_AUDIO_MAX_DURATION_S
+            int "Maximum recording length (seconds)"
+            default 60
+
+    endmenu
+
+    # Phase 14+ adds more submenus/options here as each subsystem's Kconfig
     # options are introduced. See docs/configuration.md for the full option
     # reference and which phase adds each one.
 

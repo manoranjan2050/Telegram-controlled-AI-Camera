@@ -52,6 +52,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   `/sdcard/received/`, `/photo_info`, `/photo_files`. Unauthorized-chat
   filtering moved into `process_update()` so strangers' media is ignored
   before any download is attempted.
+- **Phase 11 — Audio Recording**: `telegramp4_audio` abstraction (stub pending
+  mic hardware verification) and `/record [seconds]`, same task-per-recording
+  pattern as `/video`.
 
 ### Fixed
 - Partition table (two 2MB OTA slots + nvs/otadata/phy_init) needs >4MB of

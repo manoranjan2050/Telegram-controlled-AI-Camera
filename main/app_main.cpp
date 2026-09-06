@@ -17,6 +17,7 @@
 #include "telegramp4_camera.h"
 #include "telegramp4_storage.h"
 #include "telegramp4_video.h"
+#include "telegramp4_audio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <cstdlib>
@@ -474,6 +475,60 @@ static void handler_photo_files(int64_t chat_id, const char *args)
     telegramp4_telegram_send_message(chat_id, msg);
 }
 
+/* --- Audio (Phase 11) --- */
+
+struct audio_task_args_t {
+    int64_t chat_id;
+    uint32_t duration_s;
+};
+
+static void audio_record_task(void *arg)
+{
+    audio_task_args_t *a = (audio_task_args_t *) arg;
+
+    char msg[64];
+    snprintf(msg, sizeof(msg), "\xF0\x9F\x8E\x99 Recording %u seconds...", (unsigned) a->duration_s);
+    telegramp4_telegram_send_message(a->chat_id, msg);
+
+    telegramp4_audio_result_t result = {0};
+    esp_err_t err = telegramp4_audio_record(a->duration_s, &result);
+    if (err != ESP_OK) {
+        telegramp4_telegram_send_message(a->chat_id,
+            "\xE2\x9D\x8C Microphone unavailable.\nCheck hardware.");
+    } else {
+        uint8_t *data = NULL;
+        size_t len = 0;
+        if (read_file_into_buffer(result.path, &data, &len)) {
+            telegramp4_telegram_send_document(a->chat_id, data, len, "audio.wav");
+            free(data);
+        }
+    }
+
+    free(a);
+    vTaskDelete(NULL);
+}
+
+/* /record [seconds] (Phase 11) */
+static void handler_record(int64_t chat_id, const char *args)
+{
+    long seconds = (args[0] != '\0') ? atol(args) : CONFIG_TELEGRAMP4_AUDIO_DEFAULT_DURATION_S;
+    if (seconds < CONFIG_TELEGRAMP4_AUDIO_MIN_DURATION_S) {
+        seconds = CONFIG_TELEGRAMP4_AUDIO_MIN_DURATION_S;
+    }
+    if (seconds > CONFIG_TELEGRAMP4_AUDIO_MAX_DURATION_S) {
+        seconds = CONFIG_TELEGRAMP4_AUDIO_MAX_DURATION_S;
+    }
+
+    auto *task_args = (audio_task_args_t *) malloc(sizeof(audio_task_args_t));
+    task_args->chat_id = chat_id;
+    task_args->duration_s = (uint32_t) seconds;
+
+    if (xTaskCreate(audio_record_task, "audio_record", 8192, task_args, 5, NULL) != pdPASS) {
+        free(task_args);
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Failed to start recording task.");
+    }
+}
+
 static void handler_photo_test(int64_t chat_id, const char *args)
 {
     (void) args;
@@ -532,6 +587,7 @@ extern "C" void app_main(void)
     telegramp4_telegram_register_command("/photo_info", handler_photo_info);
     telegramp4_telegram_register_command("/photo_files", handler_photo_files);
     telegramp4_telegram_set_photo_received_handler(on_photo_received);
+    telegramp4_telegram_register_command("/record", handler_record);
 
     esp_err_t telegram_ret = telegramp4_telegram_start();
     if (telegram_ret != ESP_OK) {
