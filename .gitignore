@@ -1,0 +1,25 @@
+# ESP-IDF build artifacts
+build/
+managed_components/
+dependencies.lock
+
+# Local configuration containing secrets (Wi-Fi password, Telegram token, chat IDs)
+sdkconfig
+sdkconfig.old
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+
+# Local scratch / test output
+*.log
+/tools/*.local.*

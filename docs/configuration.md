@@ -1,0 +1,87 @@
+# Configuration
+
+All configuration is done via `idf.py menuconfig` (Kconfig), under
+`TelegramP4 Configuration`. Sensitive values live only in your local `sdkconfig`,
+which is gitignored.
+
+> This list grows as each phase adds its options. Update it in the same PR/commit
+> that adds a new Kconfig entry.
+
+## Wi-Fi (Phase 1)
+
+| Option | Description | Default |
+|---|---|---|
+| `WIFI_SSID` | Network SSID | *(empty — required)* |
+| `WIFI_PASSWORD` | Network password | *(empty — required)* |
+| `WIFI_CONNECT_TIMEOUT_MS` | Connection timeout | TBD |
+
+## Telegram (Phase 2–4)
+
+| Option | Description | Default |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | Bot API token from BotFather | placeholder `123456789:REPLACE_WITH_YOUR_BOT_TOKEN` |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | Comma-separated whitelist of chat IDs | *(empty — required)* |
+| `TELEGRAM_POLL_TIMEOUT_S` | Long-poll timeout | TBD |
+
+## Camera (Phase 5)
+
+| Option | Description | Default |
+|---|---|---|
+| `CAMERA_JPEG_QUALITY` | JPEG quality (0–63, lower = higher quality) | TBD |
+| `CAMERA_FRAME_SIZE` | Capture resolution | TBD |
+
+## Video (Phase 9)
+
+| Option | Description | Default |
+|---|---|---|
+| `VIDEO_MIN_DURATION_S` | Minimum recording length | 1 |
+| `VIDEO_DEFAULT_DURATION_S` | Default recording length | 10 |
+| `VIDEO_MAX_DURATION_S` | Maximum recording length | 60 |
+
+## Audio (Phase 11)
+
+| Option | Description | Default |
+|---|---|---|
+| `AUDIO_MIN_DURATION_S` | Minimum recording length | TBD |
+| `AUDIO_DEFAULT_DURATION_S` | Default recording length | TBD |
+| `AUDIO_MAX_DURATION_S` | Maximum recording length | TBD |
+
+## Storage (Phase 7)
+
+| Option | Description | Default |
+|---|---|---|
+| `STORAGE_MAX_DOWNLOAD_SIZE_KB` | Max size accepted for Telegram-received files | TBD |
+| `STORAGE_MAX_FILES_PER_DIR` | Cap to avoid unbounded SD usage | TBD |
+
+## AI (Phase 14)
+
+| Option | Description | Default |
+|---|---|---|
+| `AI_ENABLED` | Compile/enable AI features | TBD |
+| `AI_MODEL` | Selected model | TBD |
+
+## Motion (Phase 17–18)
+
+| Option | Description | Default |
+|---|---|---|
+| `MOTION_ENABLED` | Enable PIR motion detection | TBD |
+| `MOTION_PIR_GPIO` | GPIO connected to PIR sensor | TBD |
+| `MOTION_ALERT_COOLDOWN_S` | Minimum seconds between Telegram alerts | 30 |
+
+## GPIO (Phase 19)
+
+| Option | Description | Default |
+|---|---|---|
+| `GPIO_WHITELIST` | Comma-separated list of pins exposed to `/gpio` | *(empty)* |
+
+## Debug
+
+| Option | Description | Default |
+|---|---|---|
+| `LOG_DEFAULT_LEVEL` | ESP-IDF log verbosity | Info |
+
+## Never configured via Kconfig source defaults
+
+Bot token and Wi-Fi password must never be committed as real values in
+`sdkconfig.defaults` — that file may only contain the placeholder/example shapes.
+Real values belong in your local `sdkconfig`.
