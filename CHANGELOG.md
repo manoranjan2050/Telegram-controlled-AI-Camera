@@ -55,6 +55,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **Phase 11 — Audio Recording**: `telegramp4_audio` abstraction (stub pending
   mic hardware verification) and `/record [seconds]`, same task-per-recording
   pattern as `/video`.
+- **Phase 12 — Receive Telegram Voice**: reuses Phase 10's download
+  infrastructure (added a `duration_s` field to the shared media-received
+  callback) to save incoming voice notes as-is (OGG/Opus) to
+  `/sdcard/received/` and acknowledge with duration - no transcoding yet.
 
 ### Fixed
 - Partition table (two 2MB OTA slots + nvs/otadata/phy_init) needs >4MB of

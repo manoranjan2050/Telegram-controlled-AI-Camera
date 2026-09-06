@@ -81,10 +81,12 @@ esp_err_t telegramp4_telegram_download_file(const char *file_id, size_t max_byte
 
 /**
  * Called for every incoming message that contains a photo (Phase 10) or a
- * voice message (Phase 12), with the chat ID, the largest available file_id,
- * and its declared size in bytes (0 if unknown).
+ * voice message (Phase 12), with the chat ID, the file_id to download, its
+ * declared size in bytes (0 if unknown), and its duration in seconds (0 for
+ * photos, where duration is meaningless).
  */
-typedef void (*telegramp4_media_received_cb_t)(int64_t chat_id, const char *file_id, size_t declared_size);
+typedef void (*telegramp4_media_received_cb_t)(int64_t chat_id, const char *file_id,
+                                                size_t declared_size, uint32_t duration_s);
 
 /** Registers the handler for incoming photo messages. Call before telegramp4_telegram_start(). */
 void telegramp4_telegram_set_photo_received_handler(telegramp4_media_received_cb_t cb);

@@ -605,7 +605,7 @@ static void handle_incoming_photo(int64_t chat_id, cJSON *photo_array)
         return;
     }
     size_t size = file_size ? (size_t) cJSON_GetNumberValue(file_size) : 0;
-    s_photo_cb(chat_id, file_id->valuestring, size);
+    s_photo_cb(chat_id, file_id->valuestring, size, 0);
 }
 
 static void handle_incoming_voice(int64_t chat_id, cJSON *voice_obj)
@@ -615,11 +615,13 @@ static void handle_incoming_voice(int64_t chat_id, cJSON *voice_obj)
     }
     cJSON *file_id = cJSON_GetObjectItem(voice_obj, "file_id");
     cJSON *file_size = cJSON_GetObjectItem(voice_obj, "file_size");
+    cJSON *duration = cJSON_GetObjectItem(voice_obj, "duration");
     if (!file_id || !cJSON_IsString(file_id)) {
         return;
     }
     size_t size = file_size ? (size_t) cJSON_GetNumberValue(file_size) : 0;
-    s_voice_cb(chat_id, file_id->valuestring, size);
+    uint32_t duration_s = duration ? (uint32_t) cJSON_GetNumberValue(duration) : 0;
+    s_voice_cb(chat_id, file_id->valuestring, size, duration_s);
 }
 
 static void process_update(cJSON *update)

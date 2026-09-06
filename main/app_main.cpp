@@ -387,8 +387,9 @@ static void handler_video(int64_t chat_id, const char *args)
 static char s_last_received_filename[40] = {0};
 static size_t s_last_received_size = 0;
 
-static void on_photo_received(int64_t chat_id, const char *file_id, size_t declared_size)
+static void on_photo_received(int64_t chat_id, const char *file_id, size_t declared_size, uint32_t duration_s)
 {
+    (void) duration_s;
     size_t max_bytes = (size_t) CONFIG_TELEGRAMP4_STORAGE_MAX_DOWNLOAD_SIZE_KB * 1024;
     if (declared_size > 0 && declared_size > max_bytes) {
         telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C File too large.");
@@ -431,6 +432,55 @@ static void on_photo_received(int64_t chat_id, const char *file_id, size_t decla
     format_bytes(len, size_str, sizeof(size_str));
     char msg[128];
     snprintf(msg, sizeof(msg), "\xF0\x9F\x93\xA5 Image received.\n\nFile:\n%s\n\nSize:\n%s", filename, size_str);
+    telegramp4_telegram_send_message(chat_id, msg);
+}
+
+/* --- Receive voice from Telegram (Phase 12) ---
+ * Telegram voice notes are OGG/Opus - saved as-is, no decoding/transcoding
+ * (that's explicitly out of scope until basic voice handling works, and
+ * speech-to-text is a separate, swappable module in Phase 13). */
+static void on_voice_received(int64_t chat_id, const char *file_id, size_t declared_size, uint32_t duration_s)
+{
+    size_t max_bytes = (size_t) CONFIG_TELEGRAMP4_STORAGE_MAX_DOWNLOAD_SIZE_KB * 1024;
+    if (declared_size > 0 && declared_size > max_bytes) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C File too large.");
+        return;
+    }
+    telegramp4_storage_status_t storage = telegramp4_storage_get_status();
+    if (!storage.mounted) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Storage full.\nSD card not mounted.");
+        return;
+    }
+
+    uint8_t *data = NULL;
+    size_t len = 0;
+    if (telegramp4_telegram_download_file(file_id, max_bytes, &data, &len) != ESP_OK) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Download failed or file too large.");
+        return;
+    }
+
+    char filename[40];
+    snprintf(filename, sizeof(filename), "voice_%lld.ogg", (long long) esp_timer_get_time() / 1000000);
+    char path[160];
+    if (!telegramp4_storage_sanitize_path("received", filename, path, sizeof(path))) {
+        free(data);
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Invalid filename.");
+        return;
+    }
+    FILE *f = fopen(path, "wb");
+    if (f) {
+        fwrite(data, 1, len, f);
+        fclose(f);
+    }
+    free(data);
+
+    strncpy(s_last_received_filename, filename, sizeof(s_last_received_filename) - 1);
+    s_last_received_size = len;
+
+    char msg[128];
+    snprintf(msg, sizeof(msg),
+        "\xF0\x9F\x8E\x99 Voice message received.\n\nDuration: %u sec\nSaved:\nreceived/%s",
+        (unsigned) duration_s, filename);
     telegramp4_telegram_send_message(chat_id, msg);
 }
 
@@ -587,6 +637,7 @@ extern "C" void app_main(void)
     telegramp4_telegram_register_command("/photo_info", handler_photo_info);
     telegramp4_telegram_register_command("/photo_files", handler_photo_files);
     telegramp4_telegram_set_photo_received_handler(on_photo_received);
+    telegramp4_telegram_set_voice_received_handler(on_voice_received);
     telegramp4_telegram_register_command("/record", handler_record);
 
     esp_err_t telegram_ret = telegramp4_telegram_start();
