@@ -32,7 +32,7 @@ Same as previous lessons. No new host-side tools.
 
 - [`components/telegramp4_telegram/`](../../components/telegramp4_telegram/) — new
   component: `telegramp4_telegram_start()`, `telegramp4_telegram_send_message()`
-- [`Kconfig.projbuild`](../../Kconfig.projbuild) — new `Telegram` submenu:
+- [`main/Kconfig.projbuild`](../../main/Kconfig.projbuild) — new `Telegram` submenu:
   `TELEGRAMP4_TELEGRAM_BOT_TOKEN`
 - [`sdkconfig.defaults`](../../sdkconfig.defaults) — enables the mbedTLS
   certificate bundle used for TLS validation

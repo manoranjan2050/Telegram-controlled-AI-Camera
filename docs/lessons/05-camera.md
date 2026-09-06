@@ -39,7 +39,7 @@ correctly with the rest of the firmware, and return
 
 - [`components/telegramp4_camera/`](../../components/telegramp4_camera/) — the
   abstraction: `telegramp4_camera_init/deinit/capture/release_frame/get_status`
-- [`Kconfig.projbuild`](../../Kconfig.projbuild) — new `Camera` submenu:
+- [`main/Kconfig.projbuild`](../../main/Kconfig.projbuild) — new `Camera` submenu:
   `TELEGRAMP4_CAMERA_JPEG_QUALITY`, `TELEGRAMP4_CAMERA_FRAME_WIDTH/HEIGHT`
 - [`main/app_main.cpp`](../../main/app_main.cpp) — `/photo_test` command; calls
   `telegramp4_camera_init()` at boot (logs a warning and continues without camera

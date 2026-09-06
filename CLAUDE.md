@@ -75,6 +75,17 @@ phase is verified.
     sanitization on every file operation (no `../` traversal), confirmation prompts for
     destructive actions (`/reboot`, `/delete`).
 
+## Deviations from the spec's illustrative file tree
+
+The master spec (§5) shows `Kconfig.projbuild` and `idf_component.yml` at the
+repository root. In practice ESP-IDF only auto-discovers `Kconfig.projbuild`
+and `idf_component.yml` inside a *component* directory (`main/` counts as
+one) — a copy at the repo root next to the top-level `CMakeLists.txt` is
+silently ignored, which caused a real "undeclared CONFIG_ option" build
+failure. Both files now live in `main/` instead. If you're looking for the
+project's Kconfig options or component-manager manifest, check `main/`, not
+the repo root.
+
 ## Repository layout
 
 See spec §5 for the full target tree (`main/`, `components/telegramp4_*`, `docs/`,

@@ -44,7 +44,7 @@ Same ESP-IDF setup as Lesson 01.
   component: `telegramp4_wifi_init()`, `telegramp4_wifi_wait_connected()`,
   `telegramp4_wifi_get_state()`, `telegramp4_wifi_get_ip_str()`,
   `telegramp4_wifi_get_rssi()`
-- [`Kconfig.projbuild`](../../Kconfig.projbuild) — new `WiFi` submenu:
+- [`main/Kconfig.projbuild`](../../main/Kconfig.projbuild) — new `WiFi` submenu:
   `TELEGRAMP4_WIFI_SSID`, `TELEGRAMP4_WIFI_PASSWORD`,
   `TELEGRAMP4_WIFI_CONNECT_TIMEOUT_MS`
 - [`main/app_main.cpp`](../../main/app_main.cpp) — calls `telegramp4_wifi_init()`

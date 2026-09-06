@@ -35,7 +35,7 @@ None — onboard USB only.
   identity component (`telegramp4_board_print_banner()`)
 - [`partitions/partitions.csv`](../../partitions/partitions.csv) — two-OTA-slot
   partition table, reserved now so Phase 21 doesn't need to repartition
-- [`Kconfig.projbuild`](../../Kconfig.projbuild) — empty `TelegramP4 Configuration`
+- [`main/Kconfig.projbuild`](../../main/Kconfig.projbuild) — empty `TelegramP4 Configuration`
   menu shell that later phases populate
 
 ## How it works

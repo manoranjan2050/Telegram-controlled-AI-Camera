@@ -27,7 +27,7 @@ produce.
 
 - [`components/telegramp4_audio/`](../../components/telegramp4_audio/) —
   `telegramp4_audio_record()` (stub)
-- [`Kconfig.projbuild`](../../Kconfig.projbuild) — new `Audio` submenu: min/
+- [`main/Kconfig.projbuild`](../../main/Kconfig.projbuild) — new `Audio` submenu: min/
   default/max duration (1/10/60s)
 - [`main/app_main.cpp`](../../main/app_main.cpp) — `handler_record()` /
   `audio_record_task()`, mirroring the Phase 9 video pattern exactly

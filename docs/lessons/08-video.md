@@ -32,7 +32,7 @@ format works until tested end-to-end on real hardware.**
 
 - [`components/telegramp4_video/`](../../components/telegramp4_video/) —
   `telegramp4_video_record()` abstraction (stub pending hardware verification)
-- [`Kconfig.projbuild`](../../Kconfig.projbuild) — new `Video` submenu: min/
+- [`main/Kconfig.projbuild`](../../main/Kconfig.projbuild) — new `Video` submenu: min/
   default/max duration (1/10/60s)
 - [`main/app_main.cpp`](../../main/app_main.cpp) — `handler_video()` spawns
   `video_record_task()`, which sends the "Recording..." message, calls
