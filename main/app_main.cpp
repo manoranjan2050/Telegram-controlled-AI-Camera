@@ -10,6 +10,7 @@
 #include <cstdio>
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_idf_version.h"
 #include "nvs_flash.h"
 #include "telegramp4_board.h"
 #include "telegramp4_wifi.h"
@@ -23,6 +24,7 @@
 #include "telegramp4_motion.h"
 #include "telegramp4_gpio.h"
 #include "telegramp4_display.h"
+#include "telegramp4_ota.h"
 #include "telegramp4_security.h"
 #include <ctime>
 #include <strings.h>
@@ -827,6 +829,31 @@ static void handler_gpio_toggle(int64_t chat_id, const char *args)
     send_gpio_menu(chat_id);
 }
 
+/* --- OTA (Phase 21) --- */
+
+static void handler_version(int64_t chat_id, const char *args)
+{
+    (void) args;
+    char msg[192];
+    snprintf(msg, sizeof(msg),
+        "TelegramP4\n\nFirmware:\n%s\n\nESP-IDF:\n%s\n\nBoard:\n%s",
+        TELEGRAMP4_FIRMWARE_VERSION, esp_get_idf_version(), TELEGRAMP4_BOARD_NAME);
+    telegramp4_telegram_send_message(chat_id, msg);
+}
+
+static void handler_ota(int64_t chat_id, const char *args)
+{
+    if (args[0] == '\0') {
+        telegramp4_telegram_send_message(chat_id, "Usage: /ota <https-url-to-firmware.bin>");
+        return;
+    }
+    telegramp4_telegram_send_message(chat_id, "Starting OTA update. Device will reboot on success...");
+    esp_err_t err = telegramp4_ota_update_from_url(args); /* does not return on success */
+    if (err != ESP_OK) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C OTA update failed. Check serial log.");
+    }
+}
+
 /* /photo_info (Phase 10) */
 static void handler_photo_info(int64_t chat_id, const char *args)
 {
@@ -1025,6 +1052,9 @@ extern "C" void app_main(void)
     telegramp4_gpio_init();
     telegramp4_telegram_register_command("/gpio", handler_gpio);
     telegramp4_telegram_register_command("/gpio_toggle", handler_gpio_toggle);
+
+    telegramp4_telegram_register_command("/version", handler_version);
+    telegramp4_telegram_register_command("/ota", handler_ota);
 
     if (telegramp4_display_init() == ESP_OK) {
         xTaskCreate(display_status_task, "display_status", 3072, NULL, 3, NULL);

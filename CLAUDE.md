@@ -40,7 +40,7 @@ Track progress here so a new session knows where to resume.
 - [x] Phase 18 — Motion AI Alert (cooldown + broadcast to all whitelisted chats; honest fallback when AI unverified)
 - [x] Phase 19 — GPIO / IoT Control (whitelist-enforced /gpio + inline toggle buttons)
 - [x] Phase 20 — Display (compile-time optional, stub pending panel/driver verification)
-- [ ] Phase 21 — OTA
+- [x] Phase 21 — OTA (esp_https_ota, /version + /ota <url>, opt-in via Kconfig, not hardware-uncertain)
 - [ ] Phase 22 — System Status
 
 Detailed, ready-to-run per-phase prompts live in **[docs/PHASES.md](docs/PHASES.md)**.

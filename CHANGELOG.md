@@ -87,6 +87,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   `TELEGRAMP4_DISPLAY_ENABLED` default off, stub pending panel/driver
   verification), periodic status refresh task spawned only when a display is
   actually enabled/initialized.
+- **Phase 21 — OTA**: `telegramp4_ota` (`esp_https_ota`, cert-bundle
+  validated, opt-in via `TELEGRAMP4_OTA_ENABLED`), `/version`, `/ota <url>`.
+  Unlike most recent phases, standard ESP-IDF functionality - not blocked on
+  hardware verification.
 
 ### Fixed
 - `/video` was implemented in Phase 9 but never actually registered as a

@@ -399,6 +399,8 @@ static void handler_help(int64_t chat_id, const char *args)
         "/disarm - disarm motion detection\n"
         "/motion - motion detection status\n"
         "/gpio [pin] [on|off] - control whitelisted GPIOs\n"
+        "/version - firmware/board version\n"
+        "/ota <url> - flash firmware from a URL\n"
         "Send a photo directly to save it to the device.");
 }
 
