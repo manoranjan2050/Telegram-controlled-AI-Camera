@@ -381,6 +381,99 @@ static void handler_video(int64_t chat_id, const char *args)
     }
 }
 
+/* --- Receive photo from Telegram (Phase 10) --- */
+
+static char s_last_received_filename[40] = {0};
+static size_t s_last_received_size = 0;
+
+static void on_photo_received(int64_t chat_id, const char *file_id, size_t declared_size)
+{
+    size_t max_bytes = (size_t) CONFIG_TELEGRAMP4_STORAGE_MAX_DOWNLOAD_SIZE_KB * 1024;
+    if (declared_size > 0 && declared_size > max_bytes) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C File too large.");
+        return;
+    }
+
+    telegramp4_storage_status_t storage = telegramp4_storage_get_status();
+    if (!storage.mounted) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Storage full.\nSD card not mounted.");
+        return;
+    }
+
+    uint8_t *data = NULL;
+    size_t len = 0;
+    esp_err_t err = telegramp4_telegram_download_file(file_id, max_bytes, &data, &len);
+    if (err != ESP_OK) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Download failed or file too large.");
+        return;
+    }
+
+    char filename[40];
+    snprintf(filename, sizeof(filename), "received_%lld.jpg", (long long) esp_timer_get_time() / 1000000);
+    char path[160];
+    if (!telegramp4_storage_sanitize_path("received", filename, path, sizeof(path))) {
+        free(data);
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Invalid filename.");
+        return;
+    }
+    FILE *f = fopen(path, "wb");
+    if (f) {
+        fwrite(data, 1, len, f);
+        fclose(f);
+    }
+    free(data);
+
+    strncpy(s_last_received_filename, filename, sizeof(s_last_received_filename) - 1);
+    s_last_received_size = len;
+
+    char size_str[16];
+    format_bytes(len, size_str, sizeof(size_str));
+    char msg[128];
+    snprintf(msg, sizeof(msg), "\xF0\x9F\x93\xA5 Image received.\n\nFile:\n%s\n\nSize:\n%s", filename, size_str);
+    telegramp4_telegram_send_message(chat_id, msg);
+}
+
+/* /photo_info (Phase 10) */
+static void handler_photo_info(int64_t chat_id, const char *args)
+{
+    (void) args;
+    if (s_last_received_filename[0] == '\0') {
+        telegramp4_telegram_send_message(chat_id, "No files received yet.");
+        return;
+    }
+    char size_str[16];
+    format_bytes(s_last_received_size, size_str, sizeof(size_str));
+    char msg[96];
+    snprintf(msg, sizeof(msg), "Last received:\n%s\nSize: %s", s_last_received_filename, size_str);
+    telegramp4_telegram_send_message(chat_id, msg);
+}
+
+/* /photo_files (Phase 10) - lists files in /sdcard/received/ */
+static void handler_photo_files(int64_t chat_id, const char *args)
+{
+    (void) args;
+    DIR *d = opendir(TELEGRAMP4_SD_MOUNT_POINT "/received");
+    if (!d) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Storage full.\nSD card not mounted.");
+        return;
+    }
+    char msg[256];
+    int off = snprintf(msg, sizeof(msg), "Received files:\n");
+    struct dirent *entry;
+    int count = 0;
+    while ((entry = readdir(d)) != NULL && off < (int) sizeof(msg) && count < 15) {
+        if (entry->d_type != DT_DIR) {
+            off += snprintf(msg + off, sizeof(msg) - off, "%s\n", entry->d_name);
+            count++;
+        }
+    }
+    closedir(d);
+    if (count == 0) {
+        snprintf(msg, sizeof(msg), "No files received yet.");
+    }
+    telegramp4_telegram_send_message(chat_id, msg);
+}
+
 static void handler_photo_test(int64_t chat_id, const char *args)
 {
     (void) args;
@@ -436,6 +529,9 @@ extern "C" void app_main(void)
     telegramp4_telegram_register_command("/photo_view", handler_photo_view);
     telegramp4_telegram_register_command("/photo_dl", handler_photo_download);
     telegramp4_telegram_register_command("/photo_del", handler_photo_delete_cb);
+    telegramp4_telegram_register_command("/photo_info", handler_photo_info);
+    telegramp4_telegram_register_command("/photo_files", handler_photo_files);
+    telegramp4_telegram_set_photo_received_handler(on_photo_received);
 
     esp_err_t telegram_ret = telegramp4_telegram_start();
     if (telegram_ret != ESP_OK) {

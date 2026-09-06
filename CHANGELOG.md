@@ -47,6 +47,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **Phase 9 — Video**: `telegramp4_video` abstraction (stub pending hardware
   verification) and `/video [seconds]`, which spawns a dedicated FreeRTOS task
   so a recording never blocks the Telegram poll task for other chats.
+- **Phase 10 — Receive Photo From Telegram**: `telegramp4_telegram_download_file()`
+  (getFile + size-checked download), photo/voice received callbacks, saves to
+  `/sdcard/received/`, `/photo_info`, `/photo_files`. Unauthorized-chat
+  filtering moved into `process_update()` so strangers' media is ignored
+  before any download is attempted.
 
 ### Fixed
 - Partition table (two 2MB OTA slots + nvs/otadata/phy_init) needs >4MB of

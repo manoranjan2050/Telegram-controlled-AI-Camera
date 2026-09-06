@@ -30,6 +30,7 @@ typedef struct {
     char   *buf;
     size_t  len;
     size_t  cap;
+    size_t  max; /* hard ceiling - grows are refused past this */
 } http_resp_buf_t;
 
 static esp_err_t http_event_handler(esp_http_client_event_t *evt)
@@ -41,9 +42,9 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
             while (new_cap < resp->len + evt->data_len + 1) {
                 new_cap *= 2;
             }
-            if (new_cap > TELEGRAM_HTTP_RESPONSE_MAX) {
-                ESP_LOGE(TAG, "HTTP response too large (>%d bytes), truncating", TELEGRAM_HTTP_RESPONSE_MAX);
-                return ESP_OK;
+            if (new_cap > resp->max) {
+                ESP_LOGE(TAG, "HTTP response too large (>%u bytes), aborting", (unsigned) resp->max);
+                return ESP_FAIL;
             }
             char *grown = realloc(resp->buf, new_cap);
             if (!grown) {
@@ -61,13 +62,17 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
 }
 
 /**
- * Performs an HTTPS GET against `url` and returns a heap-allocated, NUL-terminated
- * response body (caller must free()), or NULL on failure. TLS certificate
- * validation uses the ESP-IDF certificate bundle — never disabled.
+ * Performs an HTTPS GET against `url`, capped at `max_bytes` of response body,
+ * and returns a heap-allocated buffer (caller must free()) plus its length in
+ * `out_len` if non-NULL. NUL-terminated as a convenience for JSON callers even
+ * though binary downloads don't need that. Returns NULL on failure (including
+ * exceeding max_bytes). TLS certificate validation uses the ESP-IDF
+ * certificate bundle — never disabled.
  */
-static char *http_get(const char *url, int timeout_ms)
+static char *http_get_ex(const char *url, int timeout_ms, size_t max_bytes, size_t *out_len)
 {
     http_resp_buf_t resp = {0};
+    resp.max = max_bytes;
 
     esp_http_client_config_t config = {
         .url = url,
@@ -98,7 +103,15 @@ static char *http_get(const char *url, int timeout_ms)
         free(resp.buf);
         return NULL;
     }
+    if (out_len) {
+        *out_len = resp.len;
+    }
     return resp.buf; /* may be NULL if body was empty, which is itself an error case */
+}
+
+static char *http_get(const char *url, int timeout_ms)
+{
+    return http_get_ex(url, timeout_ms, TELEGRAM_HTTP_RESPONSE_MAX, NULL);
 }
 
 /** Percent-encodes `in` for safe use in a URL query parameter. */
@@ -249,6 +262,58 @@ esp_err_t telegramp4_telegram_send_document(int64_t chat_id, const uint8_t *data
                                         "application/octet-stream", data, len);
 }
 
+esp_err_t telegramp4_telegram_download_file(const char *file_id, size_t max_bytes,
+                                             uint8_t **out_data, size_t *out_len)
+{
+    char encoded_id[256];
+    url_encode(file_id, encoded_id, sizeof(encoded_id));
+    char url[512];
+    snprintf(url, sizeof(url), "%s/getFile?file_id=%s", s_api_base, encoded_id);
+
+    char *resp = http_get(url, 15 * 1000);
+    if (!resp) {
+        ESP_LOGE(TAG, "getFile failed for file_id %s", file_id);
+        return ESP_FAIL;
+    }
+    cJSON *root = cJSON_Parse(resp);
+    free(resp);
+    if (!root) {
+        return ESP_FAIL;
+    }
+    cJSON *result = cJSON_GetObjectItem(root, "result");
+    cJSON *file_path = result ? cJSON_GetObjectItem(result, "file_path") : NULL;
+    cJSON *file_size = result ? cJSON_GetObjectItem(result, "file_size") : NULL;
+    if (!file_path || !cJSON_IsString(file_path)) {
+        cJSON_Delete(root);
+        return ESP_FAIL;
+    }
+    if (file_size && (size_t) cJSON_GetNumberValue(file_size) > max_bytes) {
+        ESP_LOGW(TAG, "Rejecting download: declared size %.0f exceeds max %u bytes",
+                  cJSON_GetNumberValue(file_size), (unsigned) max_bytes);
+        cJSON_Delete(root);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    char download_url[640];
+    /* Extract the token from s_api_base ("https://api.telegram.org/bot<token>")
+     * rather than storing it twice - the file endpoint uses a different path
+     * shape ("/file/bot<token>/<path>" vs "/bot<token>/<method>"). */
+    const char *token_start = strstr(s_api_base, "/bot");
+    snprintf(download_url, sizeof(download_url), "https://api.telegram.org/file%s/%s",
+              token_start ? token_start : "", file_path->valuestring);
+    cJSON_Delete(root);
+
+    size_t len = 0;
+    char *data = http_get_ex(download_url, 30 * 1000, max_bytes, &len);
+    if (!data) {
+        ESP_LOGE(TAG, "Failed to download file (over size limit or network error)");
+        return ESP_FAIL;
+    }
+    *out_data = (uint8_t *) data;
+    *out_len = len;
+    return ESP_OK;
+}
+
 static void build_status_text(char *out, size_t out_len)
 {
     telegramp4_wifi_state_t wifi_state = telegramp4_wifi_get_state();
@@ -327,7 +392,10 @@ static void handler_help(int64_t chat_id, const char *args)
         "/ai - not implemented yet (Phase 15)\n"
         "/files - list files on SD card\n"
         "/storage - SD card usage\n"
-        "/delete <filename> - delete a photo");
+        "/delete <filename> - delete a photo\n"
+        "/photo_info - info about the last received file\n"
+        "/photo_files - list received files\n"
+        "Send a photo directly to save it to the device.");
 }
 
 static void handler_menu(int64_t chat_id, const char *args)
@@ -514,6 +582,48 @@ static void handle_callback_query(cJSON *cq)
     }
 }
 
+/* --- Incoming media (Phase 10/12) --- */
+
+static telegramp4_media_received_cb_t s_photo_cb = NULL;
+static telegramp4_media_received_cb_t s_voice_cb = NULL;
+
+void telegramp4_telegram_set_photo_received_handler(telegramp4_media_received_cb_t cb) { s_photo_cb = cb; }
+void telegramp4_telegram_set_voice_received_handler(telegramp4_media_received_cb_t cb) { s_voice_cb = cb; }
+
+/** Telegram sends "photo" as an array of PhotoSize, smallest to largest - take the last. */
+static void handle_incoming_photo(int64_t chat_id, cJSON *photo_array)
+{
+    if (!s_photo_cb || !cJSON_IsArray(photo_array)) {
+        return;
+    }
+    int n = cJSON_GetArraySize(photo_array);
+    if (n == 0) {
+        return;
+    }
+    cJSON *largest = cJSON_GetArrayItem(photo_array, n - 1);
+    cJSON *file_id = cJSON_GetObjectItem(largest, "file_id");
+    cJSON *file_size = cJSON_GetObjectItem(largest, "file_size");
+    if (!file_id || !cJSON_IsString(file_id)) {
+        return;
+    }
+    size_t size = file_size ? (size_t) cJSON_GetNumberValue(file_size) : 0;
+    s_photo_cb(chat_id, file_id->valuestring, size);
+}
+
+static void handle_incoming_voice(int64_t chat_id, cJSON *voice_obj)
+{
+    if (!s_voice_cb) {
+        return;
+    }
+    cJSON *file_id = cJSON_GetObjectItem(voice_obj, "file_id");
+    cJSON *file_size = cJSON_GetObjectItem(voice_obj, "file_size");
+    if (!file_id || !cJSON_IsString(file_id)) {
+        return;
+    }
+    size_t size = file_size ? (size_t) cJSON_GetNumberValue(file_size) : 0;
+    s_voice_cb(chat_id, file_id->valuestring, size);
+}
+
 static void process_update(cJSON *update)
 {
     cJSON *callback_query = cJSON_GetObjectItem(update, "callback_query");
@@ -527,19 +637,40 @@ static void process_update(cJSON *update)
         return; /* not a text message update (could be a callback query, edited message, etc.) */
     }
     cJSON *chat = cJSON_GetObjectItem(message, "chat");
-    cJSON *text = cJSON_GetObjectItem(message, "text");
-    if (!chat || !text || !cJSON_IsString(text)) {
-        return;
-    }
-    cJSON *chat_id_json = cJSON_GetObjectItem(chat, "id");
+    cJSON *chat_id_json = chat ? cJSON_GetObjectItem(chat, "id") : NULL;
     if (!chat_id_json) {
         return;
     }
     int64_t chat_id = (int64_t) cJSON_GetNumberValue(chat_id_json);
 
-    ESP_LOGI(TAG, "Received message from chat %" PRId64 ": %s", chat_id, text->valuestring);
-    if (text->valuestring[0] == '/') {
+    if (!telegramp4_security_is_authorized(chat_id)) {
+        /* Silently ignore non-command media/messages from unauthorized chats -
+         * dispatch_command() handles the "Access denied." reply for text
+         * commands specifically; unsolicited photo/voice uploads from
+         * strangers shouldn't get any response at all. */
+        cJSON *text_probe = cJSON_GetObjectItem(message, "text");
+        if (text_probe && cJSON_IsString(text_probe) && text_probe->valuestring[0] == '/') {
+            dispatch_command(chat_id, text_probe->valuestring);
+        }
+        return;
+    }
+
+    cJSON *text = cJSON_GetObjectItem(message, "text");
+    if (text && cJSON_IsString(text) && text->valuestring[0] == '/') {
         dispatch_command(chat_id, text->valuestring);
+        return;
+    }
+
+    cJSON *photo = cJSON_GetObjectItem(message, "photo");
+    if (photo) {
+        handle_incoming_photo(chat_id, photo);
+        return;
+    }
+
+    cJSON *voice = cJSON_GetObjectItem(message, "voice");
+    if (voice) {
+        handle_incoming_voice(chat_id, voice);
+        return;
     }
 }
 

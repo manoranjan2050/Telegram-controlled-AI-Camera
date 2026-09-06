@@ -70,6 +70,28 @@ esp_err_t telegramp4_telegram_send_photo(int64_t chat_id, const uint8_t *data, s
 /** Uploads any file as a Telegram document (sendDocument) - used for "Download". */
 esp_err_t telegramp4_telegram_send_document(int64_t chat_id, const uint8_t *data, size_t len, const char *filename);
 
+/**
+ * Downloads a Telegram-hosted file by file_id (calls getFile, then downloads
+ * from the file endpoint), refusing anything over `max_bytes` (checked against
+ * getFile's declared size before downloading, and enforced again during the
+ * download itself). On success, caller must free() *out_data.
+ */
+esp_err_t telegramp4_telegram_download_file(const char *file_id, size_t max_bytes,
+                                             uint8_t **out_data, size_t *out_len);
+
+/**
+ * Called for every incoming message that contains a photo (Phase 10) or a
+ * voice message (Phase 12), with the chat ID, the largest available file_id,
+ * and its declared size in bytes (0 if unknown).
+ */
+typedef void (*telegramp4_media_received_cb_t)(int64_t chat_id, const char *file_id, size_t declared_size);
+
+/** Registers the handler for incoming photo messages. Call before telegramp4_telegram_start(). */
+void telegramp4_telegram_set_photo_received_handler(telegramp4_media_received_cb_t cb);
+
+/** Registers the handler for incoming voice messages (Phase 12). */
+void telegramp4_telegram_set_voice_received_handler(telegramp4_media_received_cb_t cb);
+
 #ifdef __cplusplus
 }
 #endif

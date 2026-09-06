@@ -29,7 +29,7 @@ Track progress here so a new session knows where to resume.
 - [x] Phase 7 — MicroSD Storage (mount logic + sanitization implemented using ESP-IDF's SoC-default P4 SDMMC pins; unconfirmed against DFRobot's actual wiring)
 - [x] Phase 8 — Photo Gallery (code written; build verification in progress)
 - [x] Phase 9 — Video (task-based /video handler + abstraction written; encoder is a stub pending Phase 5 hardware verification)
-- [ ] Phase 10 — Receive Photo From Telegram
+- [x] Phase 10 — Receive Photo From Telegram (getFile download, size-capped, /photo_info /photo_files)
 - [ ] Phase 11 — Audio Recording
 - [ ] Phase 12 — Receive Telegram Voice
 - [ ] Phase 13 — Voice Commands
