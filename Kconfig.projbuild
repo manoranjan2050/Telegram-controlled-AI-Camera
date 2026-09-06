@@ -133,7 +133,20 @@ menu "TelegramP4 Configuration"
 
     endmenu
 
-    # Phase 14+ adds more submenus/options here as each subsystem's Kconfig
+    menu "AI"
+
+        config TELEGRAMP4_AI_ENABLED
+            bool "Enable on-device AI object detection"
+            default n
+            help
+                Compile/config-time switch for AI features (/ai command,
+                motion+AI alerts). Off by default until a model and inference
+                framework have been verified on real hardware - see
+                docs/hardware.md and docs/lessons/12-ai.md.
+
+    endmenu
+
+    # Phase 17+ adds more submenus/options here as each subsystem's Kconfig
     # options are introduced. See docs/configuration.md for the full option
     # reference and which phase adds each one.
 

@@ -62,8 +62,7 @@ which is gitignored.
 
 | Option | Description | Default |
 |---|---|---|
-| `AI_ENABLED` | Compile/enable AI features | TBD |
-| `AI_MODEL` | Selected model | TBD |
+| `TELEGRAMP4_AI_ENABLED` | Compile/enable AI features | n |
 
 ## Motion (Phase 17–18)
 

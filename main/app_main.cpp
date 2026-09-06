@@ -19,6 +19,7 @@
 #include "telegramp4_video.h"
 #include "telegramp4_audio.h"
 #include "telegramp4_stt.h"
+#include "telegramp4_ai.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <cstdlib>
@@ -533,6 +534,45 @@ static void on_voice_received(int64_t chat_id, const char *file_id, size_t decla
      * already completed successfully; voice commands are a bonus on top. */
 }
 
+/* /ai (Phase 15) - capture -> AI inference -> photo + text result. */
+static void handler_ai(int64_t chat_id, const char *args)
+{
+    (void) args;
+    if (!telegramp4_ai_is_enabled()) {
+        telegramp4_telegram_send_message(chat_id,
+            "AI is disabled. Enable it in idf.py menuconfig -> TelegramP4 Configuration -> AI.");
+        return;
+    }
+
+    telegramp4_camera_frame_t frame = {0};
+    if (telegramp4_camera_capture(&frame) != ESP_OK) {
+        telegramp4_telegram_send_message(chat_id,
+            "\xE2\x9D\x8C Camera unavailable.\nCheck camera connection.");
+        return;
+    }
+
+    telegramp4_ai_result_t result = {0};
+    esp_err_t err = telegramp4_ai_process_image(frame.data, frame.len, &result);
+    if (err != ESP_OK) {
+        telegramp4_telegram_send_message(chat_id,
+            "\xE2\x9D\x8C AI inference failed: model not yet verified on this hardware.");
+        telegramp4_camera_release_frame(&frame);
+        return;
+    }
+
+    telegramp4_telegram_send_photo(chat_id, frame.data, frame.len);
+    telegramp4_camera_release_frame(&frame);
+
+    char msg[320];
+    int off = snprintf(msg, sizeof(msg), "\xF0\x9F\xA4\x96 AI Detection\n\nDetected:\n");
+    for (int i = 0; i < result.count && off < (int) sizeof(msg); i++) {
+        off += snprintf(msg + off, sizeof(msg) - off, "%s - %u%%\n",
+                          result.detections[i].label, (unsigned) result.detections[i].confidence_pct);
+    }
+    off += snprintf(msg + off, sizeof(msg) - off, "\nInference:\n%u ms", (unsigned) result.inference_time_ms);
+    telegramp4_telegram_send_message(chat_id, msg);
+}
+
 /* /photo_info (Phase 10) */
 static void handler_photo_info(int64_t chat_id, const char *args)
 {
@@ -688,6 +728,9 @@ extern "C" void app_main(void)
     telegramp4_telegram_set_photo_received_handler(on_photo_received);
     telegramp4_telegram_set_voice_received_handler(on_voice_received);
     telegramp4_telegram_register_command("/record", handler_record);
+
+    telegramp4_ai_init(); /* no-op / returns error cleanly if AI disabled or unverified - see telegramp4_ai.h */
+    telegramp4_telegram_register_command("/ai", handler_ai);
 
     esp_err_t telegram_ret = telegramp4_telegram_start();
     if (telegram_ret != ESP_OK) {

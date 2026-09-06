@@ -65,6 +65,20 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   `TELEGRAMP4_STT_ENABLED`), `parse_voice_command()` keyword matching, and
   `telegramp4_telegram_dispatch()` so a recognized voice command runs through
   the same path as typed commands/buttons.
+- **Phase 14 — AI Vision**: `telegramp4_ai` abstraction (`AI` Kconfig submenu,
+  `TELEGRAMP4_AI_ENABLED` default off) - stub pending model/framework choice
+  and hardware verification.
+- **Phase 15 — Telegram AI Workflow**: `/ai` (capture -> inference -> photo +
+  formatted result), reusing the same handler for the "🤖 AI Detect" menu
+  button; reports a clean error while AI is disabled/unverified.
+
+### Fixed
+- Local ESP-IDF v5.4 tooling (`confgen`/kconfiglib) silently produced an
+  incomplete `sdkconfig` under Python 3.14 (missing even standard options like
+  `CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM`), breaking the build. Rebuilt the
+  ESP-IDF Python virtual environment against Python 3.11 (installed via NuGet,
+  since the Windows Installer-based Python installer failed in this sandboxed
+  session) - this is a local dev-environment fix, not a project code change.
 
 ### Fixed
 - Partition table (two 2MB OTA slots + nvs/otadata/phy_init) needs >4MB of
