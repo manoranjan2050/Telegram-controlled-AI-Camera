@@ -180,7 +180,19 @@ menu "TelegramP4 Configuration"
 
     endmenu
 
-    # Phase 20+ adds more submenus/options here as each subsystem's Kconfig
+    menu "Display"
+
+        config TELEGRAMP4_DISPLAY_ENABLED
+            bool "Enable optional MIPI-DSI status display"
+            default n
+            help
+                Compile-time optional so the firmware works identically with
+                no display attached. Panel/driver unverified for this board -
+                see docs/hardware.md.
+
+    endmenu
+
+    # Phase 21+ adds more submenus/options here as each subsystem's Kconfig
     # options are introduced. See docs/configuration.md for the full option
     # reference and which phase adds each one.
 

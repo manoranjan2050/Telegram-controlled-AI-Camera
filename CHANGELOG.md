@@ -83,6 +83,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 - **Phase 19 — GPIO / IoT Control**: `telegramp4_gpio` (whitelist-only pin
   control), `/gpio` (list + toggle buttons), `/gpio <pin> on|off`.
+- **Phase 20 — Display**: `telegramp4_display` (compile-time optional,
+  `TELEGRAMP4_DISPLAY_ENABLED` default off, stub pending panel/driver
+  verification), periodic status refresh task spawned only when a display is
+  actually enabled/initialized.
 
 ### Fixed
 - `/video` was implemented in Phase 9 but never actually registered as a

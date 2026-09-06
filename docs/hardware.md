@@ -30,7 +30,7 @@ Product page: https://www.dfrobot.com/product-2915.html
 | Bundled/recommended camera sensor | TBD | Confirm in Phase 5 |
 | MicroSD interface | SDMMC, 4-bit, using ESP-IDF's SoC-default pins for ESP32-P4 (CLK=43 CMD=44 D0=39 D1=40 D2=41 D3=42) | **Unconfirmed for this board** — this is Espressif's chip-level reference default (`SDMMC_SLOT_CONFIG_DEFAULT()`), not something read off a DFRobot schematic. Verify before trusting it. |
 | Microphone interface | TBD (I2S/PDM) — `telegramp4_audio_record()` is a stub | Confirm in Phase 11 before implementing capture |
-| Display connector | MIPI-DSI (optional) | Confirm in Phase 20 |
+| Display connector | MIPI-DSI (optional) — `telegramp4_display_init()` is a stub | Confirm panel/driver in Phase 20 before implementing |
 | Available GPIO for user peripherals (incl. PIR) | TBD, defaults unset (`-1`) | Confirm safe/free pins in Phase 17/19 before setting `TELEGRAMP4_MOTION_PIR_GPIO` / `TELEGRAMP4_GPIO_WHITELIST` |
 | Power input | TBD | Confirm in Phase 0 |
 

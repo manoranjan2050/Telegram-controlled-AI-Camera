@@ -39,7 +39,7 @@ Track progress here so a new session knows where to resume.
 - [x] Phase 17 — Motion Detection (ISR->task pattern, /arm /disarm /motion; PIR GPIO unverified, defaults unset)
 - [x] Phase 18 — Motion AI Alert (cooldown + broadcast to all whitelisted chats; honest fallback when AI unverified)
 - [x] Phase 19 — GPIO / IoT Control (whitelist-enforced /gpio + inline toggle buttons)
-- [ ] Phase 20 — Display
+- [x] Phase 20 — Display (compile-time optional, stub pending panel/driver verification)
 - [ ] Phase 21 — OTA
 - [ ] Phase 22 — System Status
 

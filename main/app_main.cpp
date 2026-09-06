@@ -22,6 +22,7 @@
 #include "telegramp4_ai.h"
 #include "telegramp4_motion.h"
 #include "telegramp4_gpio.h"
+#include "telegramp4_display.h"
 #include "telegramp4_security.h"
 #include <ctime>
 #include <strings.h>
@@ -937,6 +938,30 @@ static void handler_photo_test(int64_t chat_id, const char *args)
     telegramp4_camera_release_frame(&frame);
 }
 
+/**
+ * Phase 20 - periodic status refresh for the optional display. A no-op loop
+ * (telegramp4_display_update_status() itself no-ops) if the display isn't
+ * enabled, but only spawned when it is, to avoid wasting a task otherwise.
+ * "Telegram connected" is approximated by WiFi state, since telegramp4_telegram
+ * doesn't currently expose its own connectivity flag - Phase 22's fuller
+ * /status work is where that could be tightened up if needed.
+ */
+static void display_status_task(void *arg)
+{
+    while (1) {
+        telegramp4_display_status_t status = {0};
+        status.wifi_ok = telegramp4_wifi_get_state() == TELEGRAMP4_WIFI_STATE_CONNECTED;
+        status.telegram_ok = status.wifi_ok;
+        status.camera_ok = telegramp4_camera_get_status().initialized;
+        status.sd_ok = telegramp4_storage_get_status().mounted;
+        status.ai_ok = telegramp4_ai_is_enabled();
+        telegramp4_wifi_get_ip_str(status.ip, sizeof(status.ip));
+
+        telegramp4_display_update_status(&status);
+        vTaskDelay(pdMS_TO_TICKS(5000));
+    }
+}
+
 extern "C" void app_main(void)
 {
     // NVS is required by WiFi and other components that persist state.
@@ -1000,6 +1025,10 @@ extern "C" void app_main(void)
     telegramp4_gpio_init();
     telegramp4_telegram_register_command("/gpio", handler_gpio);
     telegramp4_telegram_register_command("/gpio_toggle", handler_gpio_toggle);
+
+    if (telegramp4_display_init() == ESP_OK) {
+        xTaskCreate(display_status_task, "display_status", 3072, NULL, 3, NULL);
+    }
 
     esp_err_t telegram_ret = telegramp4_telegram_start();
     if (telegram_ret != ESP_OK) {
