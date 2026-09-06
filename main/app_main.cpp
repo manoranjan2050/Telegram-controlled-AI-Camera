@@ -19,6 +19,32 @@ static const char *TAG = "TAG_SYSTEM";
  * camera driver is verified on real hardware (see telegramp4_camera.h), this
  * will report the honest "camera unavailable" error rather than fake success.
  */
+/**
+ * /photo (Phase 6) - capture then upload via Telegram's sendPhoto. Shares the
+ * same camera_capture()/release_frame() pair as /photo_test; once the camera
+ * driver is verified on hardware (Phase 5), this starts working with no
+ * changes needed here.
+ */
+static void handler_photo(int64_t chat_id, const char *args)
+{
+    (void) args;
+    telegramp4_camera_frame_t frame = {0};
+    esp_err_t err = telegramp4_camera_capture(&frame);
+    if (err != ESP_OK) {
+        telegramp4_telegram_send_message(chat_id,
+            "\xE2\x9D\x8C Camera unavailable.\nCheck camera connection.");
+        return;
+    }
+
+    err = telegramp4_telegram_send_photo(chat_id, frame.data, frame.len);
+    telegramp4_camera_release_frame(&frame);
+
+    if (err != ESP_OK) {
+        telegramp4_telegram_send_message(chat_id,
+            "\xE2\x9D\x8C Telegram upload failed.");
+    }
+}
+
 static void handler_photo_test(int64_t chat_id, const char *args)
 {
     (void) args;
@@ -61,6 +87,7 @@ extern "C" void app_main(void)
         ESP_LOGW(TAG, "Camera not available: %s (device continues without it)", esp_err_to_name(camera_ret));
     }
     telegramp4_telegram_register_command("/photo_test", handler_photo_test);
+    telegramp4_telegram_register_command("/photo", handler_photo);
 
     esp_err_t telegram_ret = telegramp4_telegram_start();
     if (telegram_ret != ESP_OK) {

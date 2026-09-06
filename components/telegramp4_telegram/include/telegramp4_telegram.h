@@ -52,6 +52,13 @@ esp_err_t telegramp4_telegram_send_message(int64_t chat_id, const char *text);
  */
 esp_err_t telegramp4_telegram_send_menu(int64_t chat_id);
 
+/**
+ * Uploads a JPEG image to a chat via Telegram's sendPhoto (multipart/form-data).
+ * `data`/`len` must remain valid for the duration of the call. Retries once on
+ * failure (spec §6: handle timeouts/retries).
+ */
+esp_err_t telegramp4_telegram_send_photo(int64_t chat_id, const uint8_t *data, size_t len);
+
 #ifdef __cplusplus
 }
 #endif

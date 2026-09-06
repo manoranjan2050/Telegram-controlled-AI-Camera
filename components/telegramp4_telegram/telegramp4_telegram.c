@@ -138,6 +138,96 @@ esp_err_t telegramp4_telegram_send_message(int64_t chat_id, const char *text)
     return ESP_OK;
 }
 
+#define TELEGRAM_MULTIPART_BOUNDARY "TelegramP4Boundary7f3a9c"
+
+static esp_err_t send_photo_once(int64_t chat_id, const uint8_t *data, size_t len)
+{
+    char part1[128];
+    int part1_len = snprintf(part1, sizeof(part1),
+        "--" TELEGRAM_MULTIPART_BOUNDARY "\r\n"
+        "Content-Disposition: form-data; name=\"chat_id\"\r\n\r\n"
+        "%" PRId64 "\r\n",
+        chat_id);
+
+    char part2[160];
+    int part2_len = snprintf(part2, sizeof(part2),
+        "--" TELEGRAM_MULTIPART_BOUNDARY "\r\n"
+        "Content-Disposition: form-data; name=\"photo\"; filename=\"photo.jpg\"\r\n"
+        "Content-Type: image/jpeg\r\n\r\n");
+
+    static const char part3[] = "\r\n--" TELEGRAM_MULTIPART_BOUNDARY "--\r\n";
+    int part3_len = sizeof(part3) - 1;
+
+    size_t content_length = (size_t) part1_len + (size_t) part2_len + len + (size_t) part3_len;
+
+    char url[128];
+    snprintf(url, sizeof(url), "%s/sendPhoto", s_api_base);
+
+    esp_http_client_config_t config = {
+        .url = url,
+        .method = HTTP_METHOD_POST,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .timeout_ms = 30 * 1000,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) {
+        return ESP_FAIL;
+    }
+
+    char content_type[64];
+    snprintf(content_type, sizeof(content_type), "multipart/form-data; boundary=%s", TELEGRAM_MULTIPART_BOUNDARY);
+    esp_http_client_set_header(client, "Content-Type", content_type);
+
+    esp_err_t err = esp_http_client_open(client, (int) content_length);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "sendPhoto: failed to open connection: %s", esp_err_to_name(err));
+        esp_http_client_cleanup(client);
+        return err;
+    }
+
+    /* Streamed in three pieces so the JPEG bytes are never copied into a second
+     * buffer just to build the multipart body - avoids doubling RAM usage for
+     * what can be a sizeable image (see docs/memory-and-performance.md). */
+    if (esp_http_client_write(client, part1, part1_len) < 0 ||
+        esp_http_client_write(client, part2, part2_len) < 0 ||
+        esp_http_client_write(client, (const char *) data, (int) len) < 0 ||
+        esp_http_client_write(client, part3, part3_len) < 0) {
+        ESP_LOGE(TAG, "sendPhoto: write failed");
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        return ESP_FAIL;
+    }
+
+    int content_len = esp_http_client_fetch_headers(client);
+    int status = esp_http_client_get_status_code(client);
+    /* Drain and discard the response body (we only care about the status code). */
+    if (content_len > 0) {
+        char discard[256];
+        int read;
+        while ((read = esp_http_client_read(client, discard, sizeof(discard))) > 0) {
+            /* discard */
+        }
+    }
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+
+    if (status != 200) {
+        ESP_LOGW(TAG, "sendPhoto returned HTTP %d", status);
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
+esp_err_t telegramp4_telegram_send_photo(int64_t chat_id, const uint8_t *data, size_t len)
+{
+    esp_err_t err = send_photo_once(chat_id, data, len);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "sendPhoto failed, retrying once...");
+        err = send_photo_once(chat_id, data, len);
+    }
+    return err;
+}
+
 static void build_status_text(char *out, size_t out_len)
 {
     telegramp4_wifi_state_t wifi_state = telegramp4_wifi_get_state();
@@ -209,7 +299,7 @@ static void handler_help(int64_t chat_id, const char *args)
         "/help - this message\n"
         "/menu - show the button menu\n"
         "/status - device status\n"
-        "/photo - not implemented yet (Phase 6)\n"
+        "/photo - take a photo\n"
         "/video - not implemented yet (Phase 9)\n"
         "/photos - not implemented yet (Phase 8)\n"
         "/record - not implemented yet (Phase 11)\n"
@@ -239,7 +329,8 @@ static void handler_not_implemented(int64_t chat_id, const char *phase_note)
     telegramp4_telegram_send_message(chat_id, msg);
 }
 
-static void handler_photo_stub(int64_t chat_id, const char *args)   { (void) args; handler_not_implemented(chat_id, "Phase 6"); }
+/* /photo itself is registered by main/app_main.cpp from Phase 6 onward, since it
+ * needs telegramp4_camera - this component doesn't depend on the camera module. */
 static void handler_video_stub(int64_t chat_id, const char *args)   { (void) args; handler_not_implemented(chat_id, "Phase 9"); }
 static void handler_photos_stub(int64_t chat_id, const char *args)  { (void) args; handler_not_implemented(chat_id, "Phase 8"); }
 static void handler_record_stub(int64_t chat_id, const char *args)  { (void) args; handler_not_implemented(chat_id, "Phase 11"); }
@@ -257,7 +348,6 @@ static void register_builtin_commands(void)
     telegramp4_telegram_register_command("/help", handler_help);
     telegramp4_telegram_register_command("/menu", handler_menu);
     telegramp4_telegram_register_command("/status", handler_status);
-    telegramp4_telegram_register_command("/photo", handler_photo_stub);
     telegramp4_telegram_register_command("/video", handler_video_stub);
     telegramp4_telegram_register_command("/photos", handler_photos_stub);
     telegramp4_telegram_register_command("/record", handler_record_stub);

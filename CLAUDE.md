@@ -25,7 +25,7 @@ Track progress here so a new session knows where to resume.
 - [x] Phase 3 — Telegram Command Framework (code written; build verification pending ESP-IDF install)
 - [x] Phase 4 — Telegram Inline Buttons (code written; build verification pending ESP-IDF install)
 - [x] Phase 5 — Camera (abstraction + Kconfig written; actual sensor driver is a stub — hardware verification required, see docs/lessons/05-camera.md)
-- [ ] Phase 6 — Send Photo to Telegram
+- [x] Phase 6 — Send Photo to Telegram (multipart upload implemented; end-to-end blocked on Phase 5 camera hardware verification)
 - [ ] Phase 7 — MicroSD Storage
 - [ ] Phase 8 — Photo Gallery
 - [ ] Phase 9 — Video

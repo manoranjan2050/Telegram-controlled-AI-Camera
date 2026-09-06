@@ -31,5 +31,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   submenu, `/photo_test` command. Actual sensor bring-up is an honest stub
   pending hardware verification (web docs were unreachable while writing this
   phase) — see docs/lessons/05-camera.md for the exact follow-up steps.
+- **Phase 6 — Send Photo to Telegram**: `telegramp4_telegram_send_photo()`
+  (hand-built multipart/form-data upload, streamed without double-buffering the
+  JPEG, retries once on failure) and the real `/photo` handler. End-to-end
+  behavior still blocked on Phase 5's camera driver.
 
 See [CLAUDE.md](CLAUDE.md) for the live progress checklist.
