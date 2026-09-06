@@ -41,7 +41,7 @@ Track progress here so a new session knows where to resume.
 - [x] Phase 19 — GPIO / IoT Control (whitelist-enforced /gpio + inline toggle buttons)
 - [x] Phase 20 — Display (compile-time optional, stub pending panel/driver verification)
 - [x] Phase 21 — OTA (esp_https_ota, /version + /ota <url>, opt-in via Kconfig, not hardware-uncertain)
-- [ ] Phase 22 — System Status
+- [x] Phase 22 — System Status (final integration: full /status, /diagnostics, /reboot + /delete confirmations, final menu) — build-verified 1.0.0, hardware testing still required for all phase 5+ hardware-dependent features
 
 Detailed, ready-to-run per-phase prompts live in **[docs/PHASES.md](docs/PHASES.md)**.
 Work through them in order — do not skip ahead. Update the checklist above after each
@@ -110,8 +110,23 @@ See spec §5 for the full target tree (`main/`, `components/telegramp4_*`, `docs
 
 ## Environment notes
 
-- Development machine is Windows 11 (PowerShell). ESP-IDF commands (`idf.py`) must be
-  run from an ESP-IDF environment (`export.ps1`/`export.bat` sourced, or ESP-IDF
-  PowerShell shortcut). Verify this is set up before Phase 0.
+- Development machine is Windows 11 (PowerShell). ESP-IDF v5.4.1 is installed at
+  `C:\esp\esp-idf`. The system's default Python (3.14) is NOT compatible with
+  ESP-IDF v5.4's Kconfig tooling (`confgen`/kconfiglib silently produces an
+  incomplete `sdkconfig` under it — see CHANGELOG). A working Python 3.11 was
+  installed via NuGet (the Windows Installer-based installer failed in this
+  sandboxed session) at `C:\esp\nuget_python\python.3.11.9\tools\python.exe`,
+  and the ESP-IDF Python venv was rebuilt against it
+  (`~/.espressif/python_env/idf5.4_py3.11_env`). **To build:** prepend that
+  Python to `PATH` before sourcing `export.ps1`, e.g.:
+  ```powershell
+  $env:PATH = "C:\esp\nuget_python\python.3.11.9\tools;" + $env:PATH
+  . C:\esp\esp-idf\export.ps1
+  idf.py build
+  ```
+  Skipping the `PATH` prepend causes `export.ps1` to pick the system Python 3.14
+  again and the build to fail with "undeclared CONFIG_ option" errors.
 - No hardware-in-the-loop testing from this chat session unless the user explicitly
-  connects and flashes a board and reports back results.
+  connects and flashes a board and reports back results. Every phase's code has
+  been build-verified (compiles + links) as of Phase 22, but nothing has run on
+  an actual FireBeetle 2 ESP32-P4 board yet.

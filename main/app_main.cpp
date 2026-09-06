@@ -11,6 +11,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_idf_version.h"
+#include "esp_system.h"
 #include "nvs_flash.h"
 #include "telegramp4_board.h"
 #include "telegramp4_wifi.h"
@@ -25,6 +26,7 @@
 #include "telegramp4_gpio.h"
 #include "telegramp4_display.h"
 #include "telegramp4_ota.h"
+#include "esp_heap_caps.h"
 #include "telegramp4_security.h"
 #include <ctime>
 #include <strings.h>
@@ -40,6 +42,7 @@
 #include "cJSON.h"
 
 static const char *TAG = "TAG_SYSTEM";
+static int64_t s_last_ai_inference_ms = -1; /* -1 = no AI run yet; set by handler_ai(), read by /diagnostics */
 
 /**
  * /photo (Phase 6) - capture then upload via Telegram's sendPhoto. Shares the
@@ -82,6 +85,72 @@ static void handler_photo(int64_t chat_id, const char *args)
         telegramp4_telegram_send_message(chat_id,
             "\xE2\x9D\x8C Telegram upload failed.");
     }
+}
+
+/* --- Confirmations for destructive actions (Phase 22) --- */
+
+static void send_confirmation(int64_t chat_id, const char *yes_label, const char *yes_callback,
+                                const char *no_callback)
+{
+    cJSON *root = cJSON_CreateObject();
+    cJSON *keyboard = cJSON_AddArrayToObject(root, "inline_keyboard");
+    cJSON *row = cJSON_CreateArray();
+    cJSON *yes = cJSON_CreateObject();
+    cJSON_AddStringToObject(yes, "text", yes_label);
+    cJSON_AddStringToObject(yes, "callback_data", yes_callback);
+    cJSON *no = cJSON_CreateObject();
+    cJSON_AddStringToObject(no, "text", "Cancel");
+    cJSON_AddStringToObject(no, "callback_data", no_callback);
+    cJSON_AddItemToArray(row, yes);
+    cJSON_AddItemToArray(row, no);
+    cJSON_AddItemToArray(keyboard, row);
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    telegramp4_telegram_send_with_keyboard(chat_id, "Are you sure?", json);
+    free(json);
+}
+
+static void handler_delete_confirm(int64_t chat_id, const char *args)
+{
+    const char *colon = strchr(args, ':');
+    char subdir[16] = {0};
+    if (!colon || (size_t) (colon - args) >= sizeof(subdir)) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Invalid request.");
+        return;
+    }
+    memcpy(subdir, args, colon - args);
+    const char *filename = colon + 1;
+
+    char path[160];
+    if (!telegramp4_storage_sanitize_path(subdir, filename, path, sizeof(path))) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Invalid filename.");
+        return;
+    }
+    if (remove(path) == 0) {
+        telegramp4_telegram_send_message(chat_id, "Deleted.");
+    } else {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C File not found.");
+    }
+}
+
+static void handler_cancel(int64_t chat_id, const char *args)
+{
+    (void) args;
+    telegramp4_telegram_send_message(chat_id, "Cancelled.");
+}
+
+static void handler_reboot(int64_t chat_id, const char *args)
+{
+    (void) args;
+    send_confirmation(chat_id, "Yes, reboot", "/reboot_confirm", "/cancel");
+}
+
+static void handler_reboot_confirm(int64_t chat_id, const char *args)
+{
+    (void) args;
+    telegramp4_telegram_send_message(chat_id, "Rebooting...");
+    vTaskDelay(pdMS_TO_TICKS(500)); /* let the HTTP request above actually complete first */
+    esp_restart();
 }
 
 /** Formats a byte count as a human-readable "X.Y GB"/"X.Y MB" string. */
@@ -147,33 +216,26 @@ static void handler_files(int64_t chat_id, const char *args)
 }
 
 /**
- * Shared by /delete and the gallery's [Delete] button (Phase 8) - one place
- * that sanitizes and removes a file from /sdcard/photos/, so both entry points
- * behave identically. A full Yes/Cancel confirmation UI for all destructive
- * actions (this + /reboot) is added project-wide in Phase 22.
+ * Shared by /delete and the gallery's [Delete] button - both ask for
+ * confirmation (Phase 22) before calling handler_delete_confirm(), which
+ * does the actual sanitize+remove. `subdir` is always a fixed string literal
+ * from the caller, never user input.
  */
-static void delete_photo_file(int64_t chat_id, const char *filename)
+static void request_delete_confirmation(int64_t chat_id, const char *subdir, const char *filename)
 {
-    char path[160];
-    if (!telegramp4_storage_sanitize_path("photos", filename, path, sizeof(path))) {
-        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Invalid filename.");
-        return;
-    }
-    if (remove(path) == 0) {
-        telegramp4_telegram_send_message(chat_id, "Deleted.");
-    } else {
-        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C File not found.");
-    }
+    char callback[192];
+    snprintf(callback, sizeof(callback), "/delete_confirm %s:%s", subdir, filename);
+    send_confirmation(chat_id, "Yes, delete", callback, "/cancel");
 }
 
-/* /delete <filename> (Phase 7) */
+/* /delete <filename> (Phase 7, confirmation added Phase 22) */
 static void handler_delete(int64_t chat_id, const char *args)
 {
     if (args[0] == '\0') {
         telegramp4_telegram_send_message(chat_id, "Usage: /delete <filename>");
         return;
     }
-    delete_photo_file(chat_id, args);
+    request_delete_confirmation(chat_id, "photos", args);
 }
 
 /* --- Photo gallery (Phase 8) --- */
@@ -324,7 +386,7 @@ static void handler_photo_delete_cb(int64_t chat_id, const char *args)
     if (args[0] == '\0') {
         return;
     }
-    delete_photo_file(chat_id, args);
+    request_delete_confirmation(chat_id, "photos", args);
 }
 
 /**
@@ -516,16 +578,11 @@ static void handler_received_save(int64_t chat_id, const char *args)
 
 static void handler_received_delete(int64_t chat_id, const char *args)
 {
-    char path[160];
-    if (args[0] == '\0' || !telegramp4_storage_sanitize_path("received", args, path, sizeof(path))) {
+    if (args[0] == '\0') {
         telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Invalid filename.");
         return;
     }
-    if (remove(path) == 0) {
-        telegramp4_telegram_send_message(chat_id, "Deleted.");
-    } else {
-        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C File not found.");
-    }
+    request_delete_confirmation(chat_id, "received", args);
 }
 
 /**
@@ -652,6 +709,7 @@ static void handler_ai(int64_t chat_id, const char *args)
 
     telegramp4_telegram_send_photo(chat_id, frame.data, frame.len);
     telegramp4_camera_release_frame(&frame);
+    s_last_ai_inference_ms = result.inference_time_ms;
 
     char msg[320];
     int off = snprintf(msg, sizeof(msg), "\xF0\x9F\xA4\x96 AI Detection\n\nDetected:\n");
@@ -827,6 +885,92 @@ static void handler_gpio_toggle(int64_t chat_id, const char *args)
     }
     telegramp4_gpio_set(pin, !telegramp4_gpio_get(pin));
     send_gpio_menu(chat_id);
+}
+
+/* --- Full system status / diagnostics (Phase 22) --- */
+
+static void handler_full_status(int64_t chat_id, const char *args)
+{
+    (void) args;
+    telegramp4_wifi_state_t wifi_state = telegramp4_wifi_get_state();
+    char ip[16] = "N/A";
+    int8_t rssi = 0;
+    if (wifi_state == TELEGRAMP4_WIFI_STATE_CONNECTED) {
+        telegramp4_wifi_get_ip_str(ip, sizeof(ip));
+        rssi = telegramp4_wifi_get_rssi();
+    }
+    telegramp4_camera_status_t cam = telegramp4_camera_get_status();
+    telegramp4_storage_status_t storage = telegramp4_storage_get_status();
+    char free_str[16] = "N/A";
+    if (storage.mounted) {
+        format_bytes(storage.free_bytes, free_str, sizeof(free_str));
+    }
+    int64_t uptime_s = esp_timer_get_time() / 1000000;
+
+    char msg[512];
+    snprintf(msg, sizeof(msg),
+        "\xF0\x9F\x93\x8A TelegramP4 Status\n\n"
+        "Firmware: %s\n\n"
+        "WiFi:\n%s\nIP: %s\nRSSI: %d dBm\n\n"
+        "Telegram:\n\xE2\x9C\x93 Connected (assumed if WiFi is up)\n\n"
+        "Camera:\n%s\n\n"
+        "SD Card:\n%s\nFree: %s\n\n"
+        "AI:\n%s\n\n"
+        "Memory:\nHeap: %" PRIu32 " bytes\nPSRAM: %s\n\n"
+        "Uptime: %" PRId64 "h %" PRId64 "m %" PRId64 "s",
+        TELEGRAMP4_FIRMWARE_VERSION,
+        wifi_state == TELEGRAMP4_WIFI_STATE_CONNECTED ? "\xE2\x9C\x93 Connected" : "\xE2\x9D\x8C Disconnected",
+        ip, rssi,
+        cam.initialized ? "\xE2\x9C\x93 Ready" : "\xE2\x9D\x8C Not available",
+        storage.mounted ? "\xE2\x9C\x93 Ready" : "\xE2\x9D\x8C Not mounted",
+        free_str,
+        telegramp4_ai_is_enabled() ? "\xE2\x9C\x93 Enabled" : "Disabled",
+        (uint32_t) esp_get_free_heap_size(),
+        heap_caps_get_free_size(MALLOC_CAP_SPIRAM) > 0 ? "available" : "not detected",
+        uptime_s / 3600, (uptime_s / 60) % 60, uptime_s % 60);
+    telegramp4_telegram_send_message(chat_id, msg);
+}
+
+/**
+ * /diagnostics (spec §21). Numbers that genuinely aren't measured anywhere in
+ * this firmware (camera FPS, JPEG size, AI inference time until an AI run has
+ * actually happened, Telegram round-trip latency) are reported as "N/A" -
+ * never fabricated.
+ */
+static void handler_diagnostics(int64_t chat_id, const char *args)
+{
+    (void) args;
+    telegramp4_storage_status_t storage = telegramp4_storage_get_status();
+    char free_str[16] = "N/A";
+    if (storage.mounted) {
+        format_bytes(storage.free_bytes, free_str, sizeof(free_str));
+    }
+    int8_t rssi = telegramp4_wifi_get_state() == TELEGRAMP4_WIFI_STATE_CONNECTED
+                    ? telegramp4_wifi_get_rssi() : 0;
+
+    char inference_str[64];
+    if (s_last_ai_inference_ms >= 0) {
+        snprintf(inference_str, sizeof(inference_str), "%" PRId64 " ms (last /ai run)", s_last_ai_inference_ms);
+    } else {
+        snprintf(inference_str, sizeof(inference_str), "N/A (no AI run yet)");
+    }
+
+    char msg[384];
+    snprintf(msg, sizeof(msg),
+        "Diagnostics\n\n"
+        "Free Heap: %" PRIu32 " bytes\n"
+        "Free PSRAM: %s\n\n"
+        "Storage free: %s\n\n"
+        "Camera:\nFPS: N/A\nJPEG: N/A\n\n"
+        "AI:\nInference: %s\n\n"
+        "WiFi:\nRSSI: %d dBm\n\n"
+        "Telegram:\nLatency: N/A (not measured)",
+        (uint32_t) esp_get_free_heap_size(),
+        heap_caps_get_free_size(MALLOC_CAP_SPIRAM) > 0 ? "available" : "not detected",
+        free_str,
+        inference_str,
+        rssi);
+    telegramp4_telegram_send_message(chat_id, msg);
 }
 
 /* --- OTA (Phase 21) --- */
@@ -1055,6 +1199,13 @@ extern "C" void app_main(void)
 
     telegramp4_telegram_register_command("/version", handler_version);
     telegramp4_telegram_register_command("/ota", handler_ota);
+
+    telegramp4_telegram_register_command("/delete_confirm", handler_delete_confirm);
+    telegramp4_telegram_register_command("/cancel", handler_cancel);
+    telegramp4_telegram_register_command("/reboot", handler_reboot);
+    telegramp4_telegram_register_command("/reboot_confirm", handler_reboot_confirm);
+    telegramp4_telegram_register_command("/status", handler_full_status);
+    telegramp4_telegram_register_command("/diagnostics", handler_diagnostics);
 
     if (telegramp4_display_init() == ESP_OK) {
         xTaskCreate(display_status_task, "display_status", 3072, NULL, 3, NULL);

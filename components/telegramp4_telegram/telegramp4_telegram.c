@@ -11,8 +11,6 @@
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
 #include "esp_system.h"
-#include "esp_timer.h"
-#include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "cJSON.h"
@@ -314,34 +312,6 @@ esp_err_t telegramp4_telegram_download_file(const char *file_id, size_t max_byte
     return ESP_OK;
 }
 
-static void build_status_text(char *out, size_t out_len)
-{
-    telegramp4_wifi_state_t wifi_state = telegramp4_wifi_get_state();
-    char ip[16] = "N/A";
-    if (wifi_state == TELEGRAMP4_WIFI_STATE_CONNECTED) {
-        telegramp4_wifi_get_ip_str(ip, sizeof(ip));
-    }
-
-    int64_t uptime_s = esp_timer_get_time() / 1000000;
-    uint32_t free_heap = esp_get_free_heap_size();
-    size_t free_psram = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
-
-    snprintf(out, out_len,
-        "TelegramP4\n"
-        "\n"
-        "Status:\n"
-        "WiFi: %s\n"
-        "IP: %s\n"
-        "Uptime: %" PRId64 " sec\n"
-        "Free heap: %" PRIu32 " bytes\n"
-        "PSRAM: %s",
-        wifi_state == TELEGRAMP4_WIFI_STATE_CONNECTED ? "Connected" : "Disconnected",
-        ip,
-        uptime_s,
-        free_heap,
-        free_psram > 0 ? "available" : "not detected");
-}
-
 /* --- Command registry (Phase 3) --- */
 
 #define MAX_COMMANDS 32
@@ -392,7 +362,7 @@ static void handler_help(int64_t chat_id, const char *args)
         "/ai - run AI object detection\n"
         "/files - list files on SD card\n"
         "/storage - SD card usage\n"
-        "/delete <filename> - delete a photo\n"
+        "/delete <filename> - delete a photo (asks to confirm)\n"
         "/photo_info - info about the last received file\n"
         "/photo_files - list received files\n"
         "/arm - arm motion detection\n"
@@ -401,6 +371,8 @@ static void handler_help(int64_t chat_id, const char *args)
         "/gpio [pin] [on|off] - control whitelisted GPIOs\n"
         "/version - firmware/board version\n"
         "/ota <url> - flash firmware from a URL\n"
+        "/diagnostics - performance diagnostics\n"
+        "/reboot - restart the device (asks to confirm)\n"
         "Send a photo directly to save it to the device.");
 }
 
@@ -410,13 +382,8 @@ static void handler_menu(int64_t chat_id, const char *args)
     telegramp4_telegram_send_menu(chat_id);
 }
 
-static void handler_status(int64_t chat_id, const char *args)
-{
-    (void) args;
-    char status[512];
-    build_status_text(status, sizeof(status));
-    telegramp4_telegram_send_message(chat_id, status);
-}
+/* /status and /diagnostics are registered by main/app_main.cpp (Phase 22),
+ * since a full dashboard needs every other component. */
 
 /* Generic "not built yet" stub for menu items whose real phase hasn't landed. */
 static void handler_not_implemented(int64_t chat_id, const char *phase_note)
@@ -444,7 +411,6 @@ static void register_builtin_commands(void)
     telegramp4_telegram_register_command("/start", handler_start);
     telegramp4_telegram_register_command("/help", handler_help);
     telegramp4_telegram_register_command("/menu", handler_menu);
-    telegramp4_telegram_register_command("/status", handler_status);
     telegramp4_telegram_register_command("/settings", handler_settings_stub);
 }
 
@@ -490,16 +456,17 @@ static void dispatch_command(int64_t chat_id, const char *text)
     telegramp4_telegram_send_message(chat_id, "Unknown command.\n\nUse /help to see available commands.");
 }
 
-/* --- Inline keyboard menu (Phase 4) --- */
+/* --- Inline keyboard menu (Phase 4, finalized Phase 22 per spec §19) --- */
 
 static char *build_main_menu_json(void)
 {
-    static const char *labels[]    = {"\xF0\x9F\x93\xB8 Take Photo", "\xF0\x9F\x8E\xA5 Record Video",
-                                       "\xF0\x9F\x96\xBC Last Photo", "\xF0\x9F\x8E\x99 Record Audio",
-                                       "\xF0\x9F\xA4\x96 AI Detect",  "\xF0\x9F\x93\x8A Status",
-                                       "\xF0\x9F\x92\xBE SD Card",    "\xE2\x9A\x99 Settings"};
-    static const char *callbacks[] = {"/photo", "/video", "/photos", "/record",
-                                       "/ai", "/status", "/storage", "/settings"};
+    static const char *labels[]    = {"\xF0\x9F\x93\xB8 Photo", "\xF0\x9F\x8E\xA5 Video",
+                                       "\xF0\x9F\xA4\x96 AI",   "\xF0\x9F\x8E\x99 Audio",
+                                       "\xF0\x9F\x96\xBC Gallery", "\xF0\x9F\x9A\xA8 Motion",
+                                       "\xF0\x9F\x94\x8C GPIO", "\xF0\x9F\x93\x8A Status",
+                                       "\xE2\x9A\x99 Settings"};
+    static const char *callbacks[] = {"/photo", "/video", "/ai", "/record",
+                                       "/photos", "/motion", "/gpio", "/status", "/settings"};
     const int count = sizeof(labels) / sizeof(labels[0]);
 
     cJSON *root = cJSON_CreateObject();

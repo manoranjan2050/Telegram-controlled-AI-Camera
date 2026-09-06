@@ -3,7 +3,15 @@
 All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [1.0.0] - 2026-09-06
+
+All 22 build phases implemented and **build-verified** with ESP-IDF v5.4.1
+targeting `esp32p4`. **Not yet tested on real hardware** in this development
+session — see [docs/lessons/16-final-project.md](docs/lessons/16-final-project.md)
+for an honest checklist against the original success criteria, and
+[docs/hardware.md](docs/hardware.md) for exactly which subsystems (camera,
+video, microphone, AI model, PIR GPIO, display) are still unverified stubs
+pending a real board.
 
 ### Added
 - Project documentation scaffolding: README, CLAUDE.md, docs/ (architecture,
@@ -91,30 +99,42 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   validated, opt-in via `TELEGRAMP4_OTA_ENABLED`), `/version`, `/ota <url>`.
   Unlike most recent phases, standard ESP-IDF functionality - not blocked on
   hardware verification.
-
-### Fixed
-- `/video` was implemented in Phase 9 but never actually registered as a
-  command (caught by an "unused function" build warning once a real build
-  finally succeeded) - now wired up in `app_main()`.
-- `TELEGRAMP4_MOTION_ALERT_COOLDOWN_S`'s Kconfig `depends on
-  TELEGRAMP4_MOTION_ENABLED` meant the option (and its CONFIG_ macro) didn't
-  exist at all while motion detection was disabled (the default), breaking
-  the build for code that references the constant unconditionally. Removed
-  the dependency - it's just an int, harmless to have defined even when
-  motion detection is off.
-
-### Fixed
-- Local ESP-IDF v5.4 tooling (`confgen`/kconfiglib) silently produced an
-  incomplete `sdkconfig` under Python 3.14 (missing even standard options like
-  `CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM`), breaking the build. Rebuilt the
-  ESP-IDF Python virtual environment against Python 3.11 (installed via NuGet,
-  since the Windows Installer-based Python installer failed in this sandboxed
-  session) - this is a local dev-environment fix, not a project code change.
+- **Phase 22 — System Status (final integration)**: full `/status` dashboard
+  (moved into `app_main.cpp` so it can see every component), `/diagnostics`
+  (honest `N/A` for anything not actually measured - camera FPS/JPEG size,
+  Telegram latency), `/reboot` with `[Yes]/[Cancel]` confirmation, `/delete`
+  and every Delete button routed through one shared confirmation flow
+  (`/delete_confirm <subdir>:<filename>` / `/cancel`), and the final main
+  menu matching spec §19 exactly (Photo/Video/AI/Audio/Gallery/Motion/GPIO/
+  Status/Settings).
 
 ### Fixed
 - Partition table (two 2MB OTA slots + nvs/otadata/phy_init) needs >4MB of
   flash; `sdkconfig.defaults` now assumes 8MB (`CONFIG_ESPTOOLPY_FLASHSIZE_8MB`)
   since the default 2MB config failed to build. Actual FireBeetle 2 ESP32-P4
   flash size is still unconfirmed — see docs/hardware.md.
+- Local ESP-IDF v5.4 tooling (`confgen`/kconfiglib) silently produced an
+  incomplete `sdkconfig` under Python 3.14 (missing even standard options like
+  `CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM`), breaking the build. Rebuilt the
+  ESP-IDF Python virtual environment against Python 3.11 (installed via NuGet,
+  since the Windows Installer-based Python installer failed in this sandboxed
+  session) - a local dev-environment fix, not a project code change.
+- ESP32-P4 has no native WiFi radio - connectivity goes through the onboard
+  ESP32-C6 via the `espressif/esp_wifi_remote` managed component instead of
+  the classic on-chip `esp_wifi` driver (confirmed from ESP-IDF's own Kconfig
+  and official examples). Added the dependency and
+  `CONFIG_ESP_WIFI_REMOTE_LIBRARY_HOSTED=y`.
+- `Kconfig.projbuild` and `idf_component.yml` must live in `main/` to be
+  auto-discovered by ESP-IDF - a copy at the repo root (as shown in the
+  master spec's illustrative file tree) is silently ignored, which meant
+  every TelegramP4-specific Kconfig option was undeclared. Moved both files.
+- `main/CMakeLists.txt` was missing `esp_timer` as a dependency despite
+  `app_main.cpp` including `esp_timer.h` directly.
+- `/video` was implemented in Phase 9 but never actually registered as a
+  command (caught by an "unused function" build warning) - wired up.
+- `TELEGRAMP4_MOTION_ALERT_COOLDOWN_S`'s Kconfig `depends on
+  TELEGRAMP4_MOTION_ENABLED` meant its `CONFIG_` macro didn't exist while
+  motion detection was disabled (the default), breaking the build for code
+  that references the constant unconditionally. Removed the dependency.
 
 See [CLAUDE.md](CLAUDE.md) for the live progress checklist.

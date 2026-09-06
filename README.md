@@ -2,9 +2,16 @@
 
 **Control an ESP32-P4 AI Camera from Telegram.**
 
-> ⚠️ Status: project scaffolding stage. Firmware phases have not been implemented
-> yet — see [docs/PHASES.md](docs/PHASES.md) for the build plan and
-> [CLAUDE.md](CLAUDE.md) for current progress.
+> ⚠️ Status: all 22 build phases are implemented and the firmware
+> **build-verifies cleanly** with ESP-IDF v5.4.1 targeting `esp32p4`. It has
+> **not been tested on real hardware** in this development session — several
+> subsystems (camera, video, microphone, AI model, PIR GPIO) are honest stubs
+> pending hardware verification; see [docs/hardware.md](docs/hardware.md) for
+> exactly what's confirmed vs. still unverified, and
+> [docs/lessons/16-final-project.md](docs/lessons/16-final-project.md) for a
+> full status check-in against the original success criteria. See
+> [docs/PHASES.md](docs/PHASES.md) for the phase-by-phase build plan and
+> [CLAUDE.md](CLAUDE.md) for the live progress checklist.
 
 ## 1. What is TelegramP4?
 
@@ -15,22 +22,30 @@ as an incremental, beginner-friendly learning platform: each feature is its own
 lesson and its own firmware phase, so you can follow along from "hello world" to a
 full AI security camera.
 
-## 2. Features (target — see roadmap for current state)
+## 2. Features
 
-- Wi-Fi connectivity with auto-reconnect
-- Telegram bot control: commands + inline buttons
-- Photo capture and delivery to Telegram
-- Video recording and delivery
-- MicroSD storage with a photo/video/audio gallery
+All implemented and build-verified; ⚠️ marks features whose hardware driver
+is still an honest stub pending verification on a real board (see
+[docs/hardware.md](docs/hardware.md)):
+
+- Wi-Fi connectivity with auto-reconnect (via `esp_wifi_remote` + the onboard
+  ESP32-C6, since ESP32-P4 has no native WiFi radio)
+- Telegram bot control: commands + inline buttons, chat-ID whitelist
+- ⚠️ Photo capture and delivery to Telegram
+- ⚠️ Video recording and delivery
+- MicroSD storage with a photo gallery (`[View][Download][Delete]`)
 - Receiving photos and voice messages from Telegram
-- Audio recording and playback delivery
-- Voice-command control (speech-to-text → camera/action)
-- On-device AI object detection (ESP32-P4 edge AI)
-- PIR motion detection with AI-filtered Telegram alerts
+- ⚠️ Audio recording and playback delivery
+- Voice-command control (speech-to-text → camera/action), modular STT
+  provider (OpenAI Whisper implemented, disabled by default)
+- ⚠️ On-device AI object detection (ESP32-P4 edge AI)
+- ⚠️ PIR motion detection with AI-filtered Telegram alerts
 - Whitelisted GPIO control (LEDs, relays, buzzers, sensors)
-- Optional MIPI-DSI display with live status/preview
-- OTA firmware updates
-- Chat-ID whitelist, TLS-only Telegram traffic, no secrets in Git
+- ⚠️ Optional MIPI-DSI display with live status/preview
+- OTA firmware updates (`/ota <url>`, opt-in)
+- Full `/status` dashboard and `/diagnostics`
+- Confirmation prompts (`[Yes]/[Cancel]`) for `/delete` and `/reboot`
+- TLS-only Telegram/OTA traffic (never disabled), no secrets in Git
 
 ## 3. Hardware
 
