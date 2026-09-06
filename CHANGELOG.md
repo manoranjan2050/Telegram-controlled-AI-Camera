@@ -35,5 +35,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   (hand-built multipart/form-data upload, streamed without double-buffering the
   JPEG, retries once on failure) and the real `/photo` handler. End-to-end
   behavior still blocked on Phase 5's camera driver.
+- **Phase 7 — MicroSD Storage**: `telegramp4_storage` (mount via
+  `esp_vfs_fat_sdmmc_mount`, standard subdirectory layout, allow-list filename
+  sanitization used by every file-touching command), `/files`, `/storage`,
+  `/delete`. SDMMC pins use ESP-IDF's own SoC-default for ESP32-P4, unconfirmed
+  against DFRobot's actual board wiring.
 
 See [CLAUDE.md](CLAUDE.md) for the live progress checklist.

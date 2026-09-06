@@ -49,8 +49,7 @@ which is gitignored.
 
 | Option | Description | Default |
 |---|---|---|
-| `STORAGE_MAX_DOWNLOAD_SIZE_KB` | Max size accepted for Telegram-received files | TBD |
-| `STORAGE_MAX_FILES_PER_DIR` | Cap to avoid unbounded SD usage | TBD |
+| `TELEGRAMP4_STORAGE_MAX_DOWNLOAD_SIZE_KB` | Max size accepted for Telegram-received files | 5120 |
 
 ## AI (Phase 14)
 

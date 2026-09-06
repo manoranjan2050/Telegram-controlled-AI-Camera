@@ -66,8 +66,20 @@ menu "TelegramP4 Configuration"
 
     endmenu
 
-    # Phase 7+ adds "Storage", etc. submenus/options here as each subsystem's
-    # Kconfig options are introduced. See docs/configuration.md for the full
-    # option reference and which phase adds each one.
+    menu "Storage"
+
+        config TELEGRAMP4_STORAGE_MAX_DOWNLOAD_SIZE_KB
+            int "Max size accepted for files downloaded from Telegram (KB)"
+            default 5120
+            help
+                Files larger than this (received photos/voice via getFile) are
+                rejected rather than downloaded. Prevents a malicious or
+                oversized upload from filling the SD card.
+
+    endmenu
+
+    # Phase 11+ adds more submenus/options here as each subsystem's Kconfig
+    # options are introduced. See docs/configuration.md for the full option
+    # reference and which phase adds each one.
 
 endmenu
