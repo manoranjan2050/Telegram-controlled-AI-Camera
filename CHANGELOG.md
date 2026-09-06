@@ -40,5 +40,18 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   sanitization used by every file-touching command), `/files`, `/storage`,
   `/delete`. SDMMC pins use ESP-IDF's own SoC-default for ESP32-P4, unconfirmed
   against DFRobot's actual board wiring.
+- **Phase 8 — Photo Gallery**: `/photos` with `[View][Download][🗑 Delete]`
+  buttons per photo; new generic `telegramp4_telegram_send_with_keyboard()` and
+  `telegramp4_telegram_send_document()`; one shared `delete_photo_file()` used
+  by both `/delete` and the gallery's Delete button.
+- **Phase 9 — Video**: `telegramp4_video` abstraction (stub pending hardware
+  verification) and `/video [seconds]`, which spawns a dedicated FreeRTOS task
+  so a recording never blocks the Telegram poll task for other chats.
+
+### Fixed
+- Partition table (two 2MB OTA slots + nvs/otadata/phy_init) needs >4MB of
+  flash; `sdkconfig.defaults` now assumes 8MB (`CONFIG_ESPTOOLPY_FLASHSIZE_8MB`)
+  since the default 2MB config failed to build. Actual FireBeetle 2 ESP32-P4
+  flash size is still unconfirmed — see docs/hardware.md.
 
 See [CLAUDE.md](CLAUDE.md) for the live progress checklist.

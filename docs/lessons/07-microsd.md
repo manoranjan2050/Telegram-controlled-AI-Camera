@@ -72,8 +72,30 @@ the commands — check the pin mapping against docs/hardware.md next.
 - Mount fails — likely a pin mismatch (see the warning above) or a card not
   formatted FAT32. See [docs/troubleshooting.md](../troubleshooting.md).
 
+## Phase 8 update — Telegram photo gallery
+
+`/photos` lists up to 8 recent photos from `/sdcard/photos/` (newest first),
+each with a row of `[View] [Download] [🗑 Delete]` inline buttons. This needed
+one addition to `telegramp4_telegram`: a generic
+`telegramp4_telegram_send_with_keyboard(chat_id, text, reply_markup_json)` (the
+Phase 4 main menu now calls this too, instead of having its own copy of the
+send-with-keyboard logic), plus `telegramp4_telegram_send_document()` for
+"Download" (Telegram's `sendDocument`, sharing the same multipart-upload
+internals as `send_photo`).
+
+Each button's `callback_data` encodes an action and a filename —
+`"/photo_view <name>"`, `"/photo_dl <name>"`, `"/photo_del <name>"` — dispatched
+through the exact same command registry as everything else (they're registered
+commands, not a special case). Deleting from the gallery and deleting via
+`/delete <filename>` both call one shared `delete_photo_file()` function, so
+there's a single place that sanitizes and removes a file no matter which UI
+path triggered it — and every filename arriving through a callback is
+sanitized just as strictly as typed input, since a callback payload is
+just as untrusted.
+
+Test: `/photo` a few times to populate the gallery, then `/photos`, then try
+each button.
+
 ## Next lesson
 
-[Lesson 08 — MicroSD storage / photo gallery](09-receive-photo.md) — Phase 8
-(gallery UI) is covered together with Phase 9/10 lessons as those land, since
-the original lesson file list groups them.
+[Lesson 08 — Video recording](08-video.md)

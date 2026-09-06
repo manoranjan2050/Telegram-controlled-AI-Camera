@@ -16,6 +16,12 @@ CONFIG_LOG_DEFAULT_LEVEL_INFO=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/partitions.csv"
 
+# The two-OTA-slot partition table needs >4MB of flash. 8MB is a conservative
+# assumption pending confirmation of the FireBeetle 2 ESP32-P4's actual flash
+# size (see docs/hardware.md) - raise this if the real board has more and you
+# want larger OTA slots, or lower it (and shrink partitions.csv) if it has less.
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+
 # PSRAM/camera/video/AI-specific sdkconfig options are added in Phase 5/14 once the
 # exact FireBeetle 2 ESP32-P4 memory configuration is verified (see docs/hardware.md)
 # rather than guessed here.

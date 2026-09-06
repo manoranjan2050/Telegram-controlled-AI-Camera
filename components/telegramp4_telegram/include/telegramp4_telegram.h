@@ -53,11 +53,22 @@ esp_err_t telegramp4_telegram_send_message(int64_t chat_id, const char *text);
 esp_err_t telegramp4_telegram_send_menu(int64_t chat_id);
 
 /**
+ * Sends `text` with an arbitrary inline keyboard, given as a raw Telegram
+ * `reply_markup` JSON object string (e.g. built with cJSON). Used by the
+ * gallery (Phase 8) and anything else that needs a keyboard beyond the fixed
+ * main menu.
+ */
+esp_err_t telegramp4_telegram_send_with_keyboard(int64_t chat_id, const char *text, const char *reply_markup_json);
+
+/**
  * Uploads a JPEG image to a chat via Telegram's sendPhoto (multipart/form-data).
  * `data`/`len` must remain valid for the duration of the call. Retries once on
  * failure (spec §6: handle timeouts/retries).
  */
 esp_err_t telegramp4_telegram_send_photo(int64_t chat_id, const uint8_t *data, size_t len);
+
+/** Uploads any file as a Telegram document (sendDocument) - used for "Download". */
+esp_err_t telegramp4_telegram_send_document(int64_t chat_id, const uint8_t *data, size_t len, const char *filename);
 
 #ifdef __cplusplus
 }

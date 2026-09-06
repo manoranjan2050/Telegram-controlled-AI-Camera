@@ -33,9 +33,9 @@ which is gitignored.
 
 | Option | Description | Default |
 |---|---|---|
-| `VIDEO_MIN_DURATION_S` | Minimum recording length | 1 |
-| `VIDEO_DEFAULT_DURATION_S` | Default recording length | 10 |
-| `VIDEO_MAX_DURATION_S` | Maximum recording length | 60 |
+| `TELEGRAMP4_VIDEO_MIN_DURATION_S` | Minimum recording length | 1 |
+| `TELEGRAMP4_VIDEO_DEFAULT_DURATION_S` | Default recording length | 10 |
+| `TELEGRAMP4_VIDEO_MAX_DURATION_S` | Maximum recording length | 60 |
 
 ## Audio (Phase 11)
 

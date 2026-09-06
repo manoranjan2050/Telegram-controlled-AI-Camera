@@ -24,7 +24,7 @@ Product page: https://www.dfrobot.com/product-2915.html
 |---|---|---|
 | Main SoC | ESP32-P4 | Confirm exact revision in Phase 0 |
 | Connectivity co-processor | ESP32-C6 (Wi-Fi/BLE) | Confirm exact revision in Phase 0 |
-| Flash size | TBD | Verify in Phase 0 |
+| Flash size | Assumed 8MB in `sdkconfig.defaults` (`CONFIG_ESPTOOLPY_FLASHSIZE_8MB`) so the two-OTA-slot partition table fits | **Unconfirmed** — needed at least >4.1MB for the current partition table; 8MB was picked as a conservative common size, not read off a datasheet. Adjust if the real board differs. |
 | PSRAM size | TBD | Verify in Phase 0 |
 | Camera connector | MIPI-CSI | Confirm connector pinout/FPC type in Phase 5 |
 | Bundled/recommended camera sensor | TBD | Confirm in Phase 5 |

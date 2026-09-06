@@ -16,8 +16,16 @@
 #include "telegramp4_telegram.h"
 #include "telegramp4_camera.h"
 #include "telegramp4_storage.h"
+#include "telegramp4_video.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include <cstdlib>
 #include <dirent.h>
 #include <cstring>
+#include <algorithm>
+#include <vector>
+#include <string>
+#include "cJSON.h"
 
 static const char *TAG = "TAG_SYSTEM";
 
@@ -127,19 +135,15 @@ static void handler_files(int64_t chat_id, const char *args)
 }
 
 /**
- * /delete <filename> (Phase 7) - deletes a file from /sdcard/photos/. Filenames
- * are always sanitized before touching the filesystem; a full Yes/Cancel
- * confirmation UI for all destructive actions (this + /reboot) is added
- * project-wide in Phase 22.
+ * Shared by /delete and the gallery's [Delete] button (Phase 8) - one place
+ * that sanitizes and removes a file from /sdcard/photos/, so both entry points
+ * behave identically. A full Yes/Cancel confirmation UI for all destructive
+ * actions (this + /reboot) is added project-wide in Phase 22.
  */
-static void handler_delete(int64_t chat_id, const char *args)
+static void delete_photo_file(int64_t chat_id, const char *filename)
 {
-    if (args[0] == '\0') {
-        telegramp4_telegram_send_message(chat_id, "Usage: /delete <filename>");
-        return;
-    }
     char path[160];
-    if (!telegramp4_storage_sanitize_path("photos", args, path, sizeof(path))) {
+    if (!telegramp4_storage_sanitize_path("photos", filename, path, sizeof(path))) {
         telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Invalid filename.");
         return;
     }
@@ -150,12 +154,233 @@ static void handler_delete(int64_t chat_id, const char *args)
     }
 }
 
+/* /delete <filename> (Phase 7) */
+static void handler_delete(int64_t chat_id, const char *args)
+{
+    if (args[0] == '\0') {
+        telegramp4_telegram_send_message(chat_id, "Usage: /delete <filename>");
+        return;
+    }
+    delete_photo_file(chat_id, args);
+}
+
+/* --- Photo gallery (Phase 8) --- */
+
+#define GALLERY_MAX_LISTED 8
+
+/** Lists up to `max_count` photo filenames, newest first (best-effort: sorted
+ * by filename descending, which matches chronological order for our
+ * "photo_<unix_seconds>.jpg" naming as long as the digit count doesn't change
+ * mid-list). */
+static int list_recent_photos(char names[][40], int max_count)
+{
+    DIR *d = opendir(TELEGRAMP4_SD_MOUNT_POINT "/photos");
+    if (!d) {
+        return 0;
+    }
+    std::vector<std::string> all;
+    struct dirent *entry;
+    while ((entry = readdir(d)) != NULL) {
+        if (entry->d_type != DT_DIR) {
+            all.push_back(entry->d_name);
+        }
+    }
+    closedir(d);
+
+    std::sort(all.begin(), all.end(), std::greater<std::string>());
+
+    int count = (int) all.size() < max_count ? (int) all.size() : max_count;
+    for (int i = 0; i < count; i++) {
+        strncpy(names[i], all[i].c_str(), 39);
+        names[i][39] = '\0';
+    }
+    return count;
+}
+
+static char *build_gallery_keyboard_json(char names[][40], int count)
+{
+    cJSON *root = cJSON_CreateObject();
+    cJSON *keyboard = cJSON_AddArrayToObject(root, "inline_keyboard");
+    for (int i = 0; i < count; i++) {
+        cJSON *row = cJSON_CreateArray();
+        struct { const char *label; const char *prefix; } buttons[] = {
+            {"View", "/photo_view "}, {"Download", "/photo_dl "}, {"\xF0\x9F\x97\x91 Delete", "/photo_del "},
+        };
+        for (auto &b : buttons) {
+            char callback[64];
+            snprintf(callback, sizeof(callback), "%s%s", b.prefix, names[i]);
+            cJSON *btn = cJSON_CreateObject();
+            cJSON_AddStringToObject(btn, "text", b.label);
+            cJSON_AddStringToObject(btn, "callback_data", callback);
+            cJSON_AddItemToArray(row, btn);
+        }
+        cJSON_AddItemToArray(keyboard, row);
+    }
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return json;
+}
+
+static bool read_file_into_buffer(const char *path, uint8_t **out_data, size_t *out_len)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        return false;
+    }
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size <= 0) {
+        fclose(f);
+        return false;
+    }
+    uint8_t *buf = (uint8_t *) malloc((size_t) size);
+    if (!buf) {
+        fclose(f);
+        return false;
+    }
+    size_t read = fread(buf, 1, (size_t) size, f);
+    fclose(f);
+    if (read != (size_t) size) {
+        free(buf);
+        return false;
+    }
+    *out_data = buf;
+    *out_len = (size_t) size;
+    return true;
+}
+
+/* /photos (Phase 8) - lists recent photos with [View][Download][Delete] buttons. */
+static void handler_photos(int64_t chat_id, const char *args)
+{
+    (void) args;
+    char names[GALLERY_MAX_LISTED][40];
+    int count = list_recent_photos(names, GALLERY_MAX_LISTED);
+    if (count == 0) {
+        telegramp4_telegram_send_message(chat_id, "No photos on SD card yet. Try /photo first.");
+        return;
+    }
+    char *keyboard = build_gallery_keyboard_json(names, count);
+    if (!keyboard) {
+        return;
+    }
+    char text[256];
+    int off = snprintf(text, sizeof(text), "Recent photos (%d):\n", count);
+    for (int i = 0; i < count && off < (int) sizeof(text); i++) {
+        off += snprintf(text + off, sizeof(text) - off, "%s\n", names[i]);
+    }
+    telegramp4_telegram_send_with_keyboard(chat_id, text, keyboard);
+    free(keyboard);
+}
+
+static void handler_photo_view(int64_t chat_id, const char *args)
+{
+    char path[160];
+    if (args[0] == '\0' || !telegramp4_storage_sanitize_path("photos", args, path, sizeof(path))) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Invalid filename.");
+        return;
+    }
+    uint8_t *data = NULL;
+    size_t len = 0;
+    if (!read_file_into_buffer(path, &data, &len)) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C File not found.");
+        return;
+    }
+    telegramp4_telegram_send_photo(chat_id, data, len);
+    free(data);
+}
+
+static void handler_photo_download(int64_t chat_id, const char *args)
+{
+    char path[160];
+    if (args[0] == '\0' || !telegramp4_storage_sanitize_path("photos", args, path, sizeof(path))) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Invalid filename.");
+        return;
+    }
+    uint8_t *data = NULL;
+    size_t len = 0;
+    if (!read_file_into_buffer(path, &data, &len)) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C File not found.");
+        return;
+    }
+    telegramp4_telegram_send_document(chat_id, data, len, args);
+    free(data);
+}
+
+static void handler_photo_delete_cb(int64_t chat_id, const char *args)
+{
+    if (args[0] == '\0') {
+        return;
+    }
+    delete_photo_file(chat_id, args);
+}
+
 /**
  * /photo_test (Phase 5) - captures one frame and reports the result, without
  * uploading it. Until the camera driver is verified on real hardware (see
  * telegramp4_camera.h), this reports the honest "camera unavailable" error
  * rather than fake success.
  */
+/* --- Video (Phase 9) --- */
+
+struct video_task_args_t {
+    int64_t chat_id;
+    uint32_t duration_s;
+};
+
+/**
+ * Runs on its own task, never on the Telegram poll task, so a (currently
+ * stubbed, eventually multi-second) recording never blocks command handling
+ * for other chats - see docs/architecture.md task model.
+ */
+static void video_record_task(void *arg)
+{
+    video_task_args_t *a = (video_task_args_t *) arg;
+
+    char msg[64];
+    snprintf(msg, sizeof(msg), "\xF0\x9F\x8E\xA5 Recording for %u seconds...", (unsigned) a->duration_s);
+    telegramp4_telegram_send_message(a->chat_id, msg);
+
+    telegramp4_video_result_t result = {0};
+    esp_err_t err = telegramp4_video_record(a->duration_s, &result);
+    if (err != ESP_OK) {
+        telegramp4_telegram_send_message(a->chat_id,
+            "\xE2\x9D\x8C Camera unavailable.\nCheck camera connection.");
+    } else {
+        uint8_t *data = NULL;
+        size_t len = 0;
+        if (read_file_into_buffer(result.path, &data, &len)) {
+            telegramp4_telegram_send_message(a->chat_id, "Uploading...");
+            telegramp4_telegram_send_document(a->chat_id, data, len, "video.mp4");
+            free(data);
+        }
+    }
+
+    free(a);
+    vTaskDelete(NULL);
+}
+
+/* /video [seconds] (Phase 9) */
+static void handler_video(int64_t chat_id, const char *args)
+{
+    long seconds = (args[0] != '\0') ? atol(args) : CONFIG_TELEGRAMP4_VIDEO_DEFAULT_DURATION_S;
+    if (seconds < CONFIG_TELEGRAMP4_VIDEO_MIN_DURATION_S) {
+        seconds = CONFIG_TELEGRAMP4_VIDEO_MIN_DURATION_S;
+    }
+    if (seconds > CONFIG_TELEGRAMP4_VIDEO_MAX_DURATION_S) {
+        seconds = CONFIG_TELEGRAMP4_VIDEO_MAX_DURATION_S;
+    }
+
+    auto *task_args = (video_task_args_t *) malloc(sizeof(video_task_args_t));
+    task_args->chat_id = chat_id;
+    task_args->duration_s = (uint32_t) seconds;
+
+    if (xTaskCreate(video_record_task, "video_record", 8192, task_args, 5, NULL) != pdPASS) {
+        free(task_args);
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Failed to start recording task.");
+    }
+}
+
 static void handler_photo_test(int64_t chat_id, const char *args)
 {
     (void) args;
@@ -207,6 +432,10 @@ extern "C" void app_main(void)
     telegramp4_telegram_register_command("/files", handler_files);
     telegramp4_telegram_register_command("/storage", handler_storage);
     telegramp4_telegram_register_command("/delete", handler_delete);
+    telegramp4_telegram_register_command("/photos", handler_photos);
+    telegramp4_telegram_register_command("/photo_view", handler_photo_view);
+    telegramp4_telegram_register_command("/photo_dl", handler_photo_download);
+    telegramp4_telegram_register_command("/photo_del", handler_photo_delete_cb);
 
     esp_err_t telegram_ret = telegramp4_telegram_start();
     if (telegram_ret != ESP_OK) {

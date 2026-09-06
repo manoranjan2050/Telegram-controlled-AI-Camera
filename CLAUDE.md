@@ -27,8 +27,8 @@ Track progress here so a new session knows where to resume.
 - [x] Phase 5 — Camera (abstraction + Kconfig written; actual sensor driver is a stub — hardware verification required, see docs/lessons/05-camera.md)
 - [x] Phase 6 — Send Photo to Telegram (multipart upload implemented; end-to-end blocked on Phase 5 camera hardware verification)
 - [x] Phase 7 — MicroSD Storage (mount logic + sanitization implemented using ESP-IDF's SoC-default P4 SDMMC pins; unconfirmed against DFRobot's actual wiring)
-- [ ] Phase 8 — Photo Gallery
-- [ ] Phase 9 — Video
+- [x] Phase 8 — Photo Gallery (code written; build verification in progress)
+- [x] Phase 9 — Video (task-based /video handler + abstraction written; encoder is a stub pending Phase 5 hardware verification)
 - [ ] Phase 10 — Receive Photo From Telegram
 - [ ] Phase 11 — Audio Recording
 - [ ] Phase 12 — Receive Telegram Voice
