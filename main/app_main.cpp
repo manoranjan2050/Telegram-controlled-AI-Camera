@@ -7,13 +7,13 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "telegramp4_board.h"
+#include "telegramp4_wifi.h"
 
 static const char *TAG = "TAG_SYSTEM";
 
 extern "C" void app_main(void)
 {
-    // NVS is required by Wi-Fi (Phase 1) and other components that persist state;
-    // initializing it here in Phase 0 avoids re-plumbing bootstrap later.
+    // NVS is required by WiFi and other components that persist state.
     esp_err_t nvs_ret = nvs_flash_init();
     if (nvs_ret == ESP_ERR_NVS_NO_FREE_PAGES || nvs_ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -23,5 +23,14 @@ extern "C" void app_main(void)
 
     telegramp4_board_print_banner();
 
-    ESP_LOGI(TAG, "Phase 0 bootstrap complete.");
+    ESP_ERROR_CHECK(telegramp4_wifi_init());
+    if (telegramp4_wifi_wait_connected(CONFIG_TELEGRAMP4_WIFI_CONNECT_TIMEOUT_MS)) {
+        char ip[16] = {0};
+        telegramp4_wifi_get_ip_str(ip, sizeof(ip));
+        ESP_LOGI(TAG, "Boot WiFi connect succeeded, IP: %s", ip);
+    } else {
+        ESP_LOGW(TAG, "Boot WiFi connect timed out; will keep retrying in the background.");
+    }
+
+    ESP_LOGI(TAG, "Phase 1 bootstrap complete.");
 }

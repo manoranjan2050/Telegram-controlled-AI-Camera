@@ -11,9 +11,9 @@ which is gitignored.
 
 | Option | Description | Default |
 |---|---|---|
-| `WIFI_SSID` | Network SSID | *(empty — required)* |
-| `WIFI_PASSWORD` | Network password | *(empty — required)* |
-| `WIFI_CONNECT_TIMEOUT_MS` | Connection timeout | TBD |
+| `TELEGRAMP4_WIFI_SSID` | Network SSID | *(empty — required)* |
+| `TELEGRAMP4_WIFI_PASSWORD` | Network password | *(empty — required)* |
+| `TELEGRAMP4_WIFI_CONNECT_TIMEOUT_MS` | Initial connect timeout before boot continues without WiFi (reconnect keeps retrying regardless) | 15000 |
 
 ## Telegram (Phase 2–4)
 

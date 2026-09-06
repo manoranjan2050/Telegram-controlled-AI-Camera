@@ -1,5 +1,5 @@
 idf_component_register(
     SRCS "app_main.cpp"
     INCLUDE_DIRS "."
-    PRIV_REQUIRES nvs_flash telegramp4_board
+    PRIV_REQUIRES nvs_flash telegramp4_board telegramp4_wifi
 )

@@ -1,7 +1,34 @@
 menu "TelegramP4 Configuration"
 
-    # Phase 1+ adds "WiFi", "Telegram", "Camera", "Storage", etc. submenus here as
-    # each subsystem's Kconfig options are introduced. See docs/configuration.md
-    # for the full option reference and which phase adds each one.
+    menu "WiFi"
+
+        config TELEGRAMP4_WIFI_SSID
+            string "WiFi SSID"
+            default ""
+            help
+                Network SSID to connect to. Stored only in your local sdkconfig
+                (gitignored) — never commit a real value.
+
+        config TELEGRAMP4_WIFI_PASSWORD
+            string "WiFi Password"
+            default ""
+            help
+                Network password (WPA2-PSK). Stored only in your local sdkconfig
+                (gitignored) — never commit a real value, never logged by the
+                firmware.
+
+        config TELEGRAMP4_WIFI_CONNECT_TIMEOUT_MS
+            int "WiFi initial connect timeout (ms)"
+            default 15000
+            help
+                How long app_main waits for the first successful connection
+                before giving up and continuing boot without WiFi. Reconnection
+                attempts continue in the background regardless.
+
+    endmenu
+
+    # Phase 2+ adds "Telegram", "Camera", "Storage", etc. submenus here as each
+    # subsystem's Kconfig options are introduced. See docs/configuration.md for
+    # the full option reference and which phase adds each one.
 
 endmenu
