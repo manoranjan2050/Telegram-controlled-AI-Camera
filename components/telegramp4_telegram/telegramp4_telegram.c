@@ -197,6 +197,7 @@ static void handler_start(int64_t chat_id, const char *args)
         "Welcome to TelegramP4!\n\n"
         "ESP32-P4 Telegram Camera & IoT Platform\n\n"
         "Use /help to see commands.");
+    telegramp4_telegram_send_menu(chat_id);
 }
 
 static void handler_help(int64_t chat_id, const char *args)
@@ -206,8 +207,20 @@ static void handler_help(int64_t chat_id, const char *args)
         "TelegramP4 commands:\n\n"
         "/start - welcome message\n"
         "/help - this message\n"
+        "/menu - show the button menu\n"
         "/status - device status\n"
-        "/photo - not implemented yet (Phase 6)");
+        "/photo - not implemented yet (Phase 6)\n"
+        "/video - not implemented yet (Phase 9)\n"
+        "/photos - not implemented yet (Phase 8)\n"
+        "/record - not implemented yet (Phase 11)\n"
+        "/ai - not implemented yet (Phase 15)\n"
+        "/storage - not implemented yet (Phase 7)");
+}
+
+static void handler_menu(int64_t chat_id, const char *args)
+{
+    (void) args;
+    telegramp4_telegram_send_menu(chat_id);
 }
 
 static void handler_status(int64_t chat_id, const char *args)
@@ -218,18 +231,39 @@ static void handler_status(int64_t chat_id, const char *args)
     telegramp4_telegram_send_message(chat_id, status);
 }
 
-static void handler_photo_stub(int64_t chat_id, const char *args)
+/* Generic "not built yet" stub for menu items whose real phase hasn't landed. */
+static void handler_not_implemented(int64_t chat_id, const char *phase_note)
+{
+    char msg[64];
+    snprintf(msg, sizeof(msg), "Not implemented yet - see %s.", phase_note);
+    telegramp4_telegram_send_message(chat_id, msg);
+}
+
+static void handler_photo_stub(int64_t chat_id, const char *args)   { (void) args; handler_not_implemented(chat_id, "Phase 6"); }
+static void handler_video_stub(int64_t chat_id, const char *args)   { (void) args; handler_not_implemented(chat_id, "Phase 9"); }
+static void handler_photos_stub(int64_t chat_id, const char *args)  { (void) args; handler_not_implemented(chat_id, "Phase 8"); }
+static void handler_record_stub(int64_t chat_id, const char *args)  { (void) args; handler_not_implemented(chat_id, "Phase 11"); }
+static void handler_ai_stub(int64_t chat_id, const char *args)      { (void) args; handler_not_implemented(chat_id, "Phase 15"); }
+static void handler_storage_stub(int64_t chat_id, const char *args) { (void) args; handler_not_implemented(chat_id, "Phase 7"); }
+static void handler_settings_stub(int64_t chat_id, const char *args)
 {
     (void) args;
-    telegramp4_telegram_send_message(chat_id, "Not implemented yet - see Phase 6.");
+    telegramp4_telegram_send_message(chat_id, "Settings are not implemented yet.");
 }
 
 static void register_builtin_commands(void)
 {
     telegramp4_telegram_register_command("/start", handler_start);
     telegramp4_telegram_register_command("/help", handler_help);
+    telegramp4_telegram_register_command("/menu", handler_menu);
     telegramp4_telegram_register_command("/status", handler_status);
     telegramp4_telegram_register_command("/photo", handler_photo_stub);
+    telegramp4_telegram_register_command("/video", handler_video_stub);
+    telegramp4_telegram_register_command("/photos", handler_photos_stub);
+    telegramp4_telegram_register_command("/record", handler_record_stub);
+    telegramp4_telegram_register_command("/ai", handler_ai_stub);
+    telegramp4_telegram_register_command("/storage", handler_storage_stub);
+    telegramp4_telegram_register_command("/settings", handler_settings_stub);
 }
 
 /**
@@ -274,8 +308,101 @@ static void dispatch_command(int64_t chat_id, const char *text)
     telegramp4_telegram_send_message(chat_id, "Unknown command.\n\nUse /help to see available commands.");
 }
 
+/* --- Inline keyboard menu (Phase 4) --- */
+
+static char *build_main_menu_json(void)
+{
+    static const char *labels[]    = {"\xF0\x9F\x93\xB8 Take Photo", "\xF0\x9F\x8E\xA5 Record Video",
+                                       "\xF0\x9F\x96\xBC Last Photo", "\xF0\x9F\x8E\x99 Record Audio",
+                                       "\xF0\x9F\xA4\x96 AI Detect",  "\xF0\x9F\x93\x8A Status",
+                                       "\xF0\x9F\x92\xBE SD Card",    "\xE2\x9A\x99 Settings"};
+    static const char *callbacks[] = {"/photo", "/video", "/photos", "/record",
+                                       "/ai", "/status", "/storage", "/settings"};
+    const int count = sizeof(labels) / sizeof(labels[0]);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON *keyboard = cJSON_AddArrayToObject(root, "inline_keyboard");
+    for (int i = 0; i < count; i++) {
+        cJSON *row = cJSON_CreateArray();
+        cJSON *btn = cJSON_CreateObject();
+        cJSON_AddStringToObject(btn, "text", labels[i]);
+        cJSON_AddStringToObject(btn, "callback_data", callbacks[i]);
+        cJSON_AddItemToArray(row, btn);
+        cJSON_AddItemToArray(keyboard, row);
+    }
+
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return json; /* caller must free() */
+}
+
+esp_err_t telegramp4_telegram_send_menu(int64_t chat_id)
+{
+    char *menu_json = build_main_menu_json();
+    if (!menu_json) {
+        return ESP_ERR_NO_MEM;
+    }
+
+    char encoded_markup[2048];
+    url_encode(menu_json, encoded_markup, sizeof(encoded_markup));
+    free(menu_json);
+
+    char url[3072];
+    snprintf(url, sizeof(url), "%s/sendMessage?chat_id=%" PRId64 "&text=TelegramP4&reply_markup=%s",
+              s_api_base, chat_id, encoded_markup);
+
+    char *resp = http_get(url, 10 * 1000);
+    if (!resp) {
+        ESP_LOGE(TAG, "sendMenu failed for chat %" PRId64, chat_id);
+        return ESP_FAIL;
+    }
+    free(resp);
+    return ESP_OK;
+}
+
+static void answer_callback_query(const char *callback_query_id)
+{
+    char url[256];
+    snprintf(url, sizeof(url), "%s/answerCallbackQuery?callback_query_id=%s",
+              s_api_base, callback_query_id);
+    char *resp = http_get(url, 10 * 1000);
+    if (resp) {
+        free(resp);
+    }
+}
+
+static void handle_callback_query(cJSON *cq)
+{
+    cJSON *data = cJSON_GetObjectItem(cq, "data");
+    cJSON *id = cJSON_GetObjectItem(cq, "id");
+    cJSON *message = cJSON_GetObjectItem(cq, "message");
+    if (!data || !cJSON_IsString(data) || !message) {
+        return;
+    }
+    cJSON *chat = cJSON_GetObjectItem(message, "chat");
+    cJSON *chat_id_json = chat ? cJSON_GetObjectItem(chat, "id") : NULL;
+    if (!chat_id_json) {
+        return;
+    }
+    int64_t chat_id = (int64_t) cJSON_GetNumberValue(chat_id_json);
+
+    ESP_LOGI(TAG, "Received callback from chat %" PRId64 ": %s", chat_id, data->valuestring);
+    /* Same dispatch path as a typed command - buttons never duplicate handler logic. */
+    dispatch_command(chat_id, data->valuestring);
+
+    if (id && cJSON_IsString(id)) {
+        answer_callback_query(id->valuestring);
+    }
+}
+
 static void process_update(cJSON *update)
 {
+    cJSON *callback_query = cJSON_GetObjectItem(update, "callback_query");
+    if (callback_query) {
+        handle_callback_query(callback_query);
+        return;
+    }
+
     cJSON *message = cJSON_GetObjectItem(update, "message");
     if (!message) {
         return; /* not a text message update (could be a callback query, edited message, etc.) */

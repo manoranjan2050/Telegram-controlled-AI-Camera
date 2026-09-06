@@ -44,6 +44,14 @@ esp_err_t telegramp4_telegram_start(void);
 /** Sends a plain-text message to the given chat ID. Returns ESP_OK on HTTP 200. */
 esp_err_t telegramp4_telegram_send_message(int64_t chat_id, const char *text);
 
+/**
+ * Sends the main inline-keyboard menu (Phase 4). Each button's callback_data is
+ * a command name (e.g. "/photo") so callback queries are dispatched through the
+ * exact same registered handlers as typed commands — see
+ * telegramp4_telegram_register_command().
+ */
+esp_err_t telegramp4_telegram_send_menu(int64_t chat_id);
+
 #ifdef __cplusplus
 }
 #endif

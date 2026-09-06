@@ -22,5 +22,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   (`telegramp4_telegram_register_command`), new `telegramp4_security` component
   enforcing a chat-ID whitelist before every command runs, `/photo` stub, and the
   `Allowed Telegram Chat IDs` Kconfig option.
+- **Phase 4 — Telegram Inline Buttons**: main menu (`telegramp4_telegram_send_menu`)
+  sent on `/start`/`/menu`, callback-query handling routed through the same
+  `dispatch_command()` used by typed commands, and stub handlers for every
+  not-yet-built menu item (`/video`, `/photos`, `/record`, `/ai`, `/storage`,
+  `/settings`).
 
 See [CLAUDE.md](CLAUDE.md) for the live progress checklist.
