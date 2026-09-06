@@ -19,7 +19,7 @@ Product page: https://www.dfrobot.com/product-2915.html
 
 Track progress here so a new session knows where to resume.
 
-- [ ] Phase 0 — Project Bootstrap
+- [x] Phase 0 — Project Bootstrap (code written; build verification pending ESP-IDF install)
 - [ ] Phase 1 — Wi-Fi
 - [ ] Phase 2 — Telegram Basic
 - [ ] Phase 3 — Telegram Command Framework

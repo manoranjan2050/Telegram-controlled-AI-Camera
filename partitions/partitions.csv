@@ -1,0 +1,13 @@
+# TelegramP4 partition table
+# Name,     Type, SubType, Offset,  Size,  Flags
+#
+# Two OTA app slots from the start (spec §21 needs OTA later, and repartitioning
+# after users have flashed devices is painful — cheaper to reserve the layout now).
+# Sizes are a starting estimate for a camera+AI firmware image; revisit in Phase 21
+# once real Phase 14 (AI) and Phase 9 (video) binary sizes are measured against the
+# FireBeetle 2 ESP32-P4's confirmed flash size (see docs/hardware.md).
+nvs,      data, nvs,     0x9000,  0x6000,
+otadata,  data, ota,     0xf000,  0x2000,
+phy_init, data, phy,     0x11000, 0x1000,
+ota_0,    app,  ota_0,   0x20000, 2M,
+ota_1,    app,  ota_1,   ,        2M,

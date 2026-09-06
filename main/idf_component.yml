@@ -1,0 +1,11 @@
+# ESP-IDF Component Manager manifest for the `main` component.
+#
+# Note: ESP-IDF's component manager reads idf_component.yml per-component
+# (main/idf_component.yml, components/<name>/idf_component.yml), not from the
+# project root — this is why it lives here rather than at the repo root shown in
+# the original spec's illustrative tree.
+#
+# Managed dependencies (e.g. esp32-camera, esp-video, esp-dl) are added here phase
+# by phase, pinned to an exact version, as each phase needs them.
+dependencies:
+  idf: ">=5.3"

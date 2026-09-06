@@ -1,0 +1,7 @@
+menu "TelegramP4 Configuration"
+
+    # Phase 1+ adds "WiFi", "Telegram", "Camera", "Storage", etc. submenus here as
+    # each subsystem's Kconfig options are introduced. See docs/configuration.md
+    # for the full option reference and which phase adds each one.
+
+endmenu
