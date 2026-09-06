@@ -5,6 +5,7 @@
 
 #include "telegramp4_telegram.h"
 #include "telegramp4_wifi.h"
+#include "telegramp4_security.h"
 
 #include "esp_log.h"
 #include "esp_http_client.h"
@@ -165,27 +166,112 @@ static void build_status_text(char *out, size_t out_len)
         free_psram > 0 ? "available" : "not detected");
 }
 
-/* Phase 2: plain if/else dispatch. Replaced by the command registry in Phase 3. */
-static void handle_command(int64_t chat_id, const char *text)
+/* --- Command registry (Phase 3) --- */
+
+#define MAX_COMMANDS 32
+
+typedef struct {
+    char name[32];
+    telegramp4_command_handler_t handler;
+} command_entry_t;
+
+static command_entry_t s_commands[MAX_COMMANDS];
+static int s_command_count = 0;
+
+esp_err_t telegramp4_telegram_register_command(const char *command, telegramp4_command_handler_t handler)
 {
-    if (strncmp(text, "/start", 6) == 0) {
-        telegramp4_telegram_send_message(chat_id,
-            "Welcome to TelegramP4!\n\n"
-            "ESP32-P4 Telegram Camera & IoT Platform\n\n"
-            "Use /help to see commands.");
-    } else if (strncmp(text, "/help", 5) == 0) {
-        telegramp4_telegram_send_message(chat_id,
-            "TelegramP4 commands:\n\n"
-            "/start - welcome message\n"
-            "/help - this message\n"
-            "/status - device status");
-    } else if (strncmp(text, "/status", 7) == 0) {
-        char status[512];
-        build_status_text(status, sizeof(status));
-        telegramp4_telegram_send_message(chat_id, status);
-    } else {
-        ESP_LOGI(TAG, "Ignoring unrecognized command (framework arrives in Phase 3): %s", text);
+    if (s_command_count >= MAX_COMMANDS) {
+        ESP_LOGE(TAG, "Command registry full, cannot register %s", command);
+        return ESP_ERR_NO_MEM;
     }
+    strncpy(s_commands[s_command_count].name, command, sizeof(s_commands[0].name) - 1);
+    s_commands[s_command_count].handler = handler;
+    s_command_count++;
+    return ESP_OK;
+}
+
+static void handler_start(int64_t chat_id, const char *args)
+{
+    (void) args;
+    telegramp4_telegram_send_message(chat_id,
+        "Welcome to TelegramP4!\n\n"
+        "ESP32-P4 Telegram Camera & IoT Platform\n\n"
+        "Use /help to see commands.");
+}
+
+static void handler_help(int64_t chat_id, const char *args)
+{
+    (void) args;
+    telegramp4_telegram_send_message(chat_id,
+        "TelegramP4 commands:\n\n"
+        "/start - welcome message\n"
+        "/help - this message\n"
+        "/status - device status\n"
+        "/photo - not implemented yet (Phase 6)");
+}
+
+static void handler_status(int64_t chat_id, const char *args)
+{
+    (void) args;
+    char status[512];
+    build_status_text(status, sizeof(status));
+    telegramp4_telegram_send_message(chat_id, status);
+}
+
+static void handler_photo_stub(int64_t chat_id, const char *args)
+{
+    (void) args;
+    telegramp4_telegram_send_message(chat_id, "Not implemented yet - see Phase 6.");
+}
+
+static void register_builtin_commands(void)
+{
+    telegramp4_telegram_register_command("/start", handler_start);
+    telegramp4_telegram_register_command("/help", handler_help);
+    telegramp4_telegram_register_command("/status", handler_status);
+    telegramp4_telegram_register_command("/photo", handler_photo_stub);
+}
+
+/**
+ * Splits `text` (e.g. "/gpio 4 on") into a command name (up to the first space or
+ * '@' — Telegram appends "@botname" to commands in group chats) and the remaining
+ * argument string. Supports "/command", "/command arg", "/command arg1 arg2".
+ */
+static void dispatch_command(int64_t chat_id, const char *text)
+{
+    if (!telegramp4_security_is_authorized(chat_id)) {
+        ESP_LOGW(TAG, "Unauthorized chat %" PRId64 " attempted: %s", chat_id, text);
+        telegramp4_telegram_send_message(chat_id, "Access denied.");
+        return;
+    }
+
+    /* Copy just the command token (stop at space or '@botname' suffix). */
+    char name[32] = {0};
+    size_t i = 0;
+    while (text[i] != '\0' && text[i] != ' ' && text[i] != '@' && i < sizeof(name) - 1) {
+        name[i] = text[i];
+        i++;
+    }
+    name[i] = '\0';
+
+    /* Skip past any "@botname" suffix, then any following space, to find args. */
+    while (text[i] != '\0' && text[i] != ' ') {
+        i++;
+    }
+    while (text[i] == ' ') {
+        i++;
+    }
+    const char *args = &text[i]; /* "" if nothing follows */
+
+    for (int c = 0; c < s_command_count; c++) {
+        if (strcmp(s_commands[c].name, name) == 0) {
+            s_commands[c].handler(chat_id, args);
+            return;
+        }
+    }
+
+    ESP_LOGI(TAG, "Unknown command from chat %" PRId64 ": %s", chat_id, name);
+    telegramp4_telegram_send_message(chat_id, "Unknown command.\n\nUse /help to see available commands.");
 }
 
 static void process_update(cJSON *update)
@@ -205,8 +291,10 @@ static void process_update(cJSON *update)
     }
     int64_t chat_id = (int64_t) cJSON_GetNumberValue(chat_id_json);
 
-    ESP_LOGI(TAG, "Received command from chat %" PRId64 ": %s", chat_id, text->valuestring);
-    handle_command(chat_id, text->valuestring);
+    ESP_LOGI(TAG, "Received message from chat %" PRId64 ": %s", chat_id, text->valuestring);
+    if (text->valuestring[0] == '/') {
+        dispatch_command(chat_id, text->valuestring);
+    }
 }
 
 static void telegram_poll_task(void *arg)
@@ -256,6 +344,8 @@ static void telegram_poll_task(void *arg)
 
 esp_err_t telegramp4_telegram_start(void)
 {
+    register_builtin_commands();
+
     snprintf(s_api_base, sizeof(s_api_base), "https://api.telegram.org/bot%s",
               CONFIG_TELEGRAMP4_TELEGRAM_BOT_TOKEN);
 

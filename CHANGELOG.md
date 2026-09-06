@@ -18,5 +18,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **Phase 2 — Telegram Basic**: `telegramp4_telegram` component (HTTPS Bot API
   client with cert-bundle TLS validation, `getMe`/`getUpdates` long polling,
   `/start` `/help` `/status`), Telegram Kconfig submenu, and Lesson 03.
+- **Phase 3 — Telegram Command Framework**: reusable command registry
+  (`telegramp4_telegram_register_command`), new `telegramp4_security` component
+  enforcing a chat-ID whitelist before every command runs, `/photo` stub, and the
+  `Allowed Telegram Chat IDs` Kconfig option.
 
 See [CLAUDE.md](CLAUDE.md) for the live progress checklist.

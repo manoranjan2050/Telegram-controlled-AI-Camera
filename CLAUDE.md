@@ -22,7 +22,7 @@ Track progress here so a new session knows where to resume.
 - [x] Phase 0 — Project Bootstrap (code written; build verification pending ESP-IDF install)
 - [x] Phase 1 — Wi-Fi (code written; build verification pending ESP-IDF install)
 - [x] Phase 2 — Telegram Basic (code written; build verification pending ESP-IDF install)
-- [ ] Phase 3 — Telegram Command Framework
+- [x] Phase 3 — Telegram Command Framework (code written; build verification pending ESP-IDF install)
 - [ ] Phase 4 — Telegram Inline Buttons
 - [ ] Phase 5 — Camera
 - [ ] Phase 6 — Send Photo to Telegram

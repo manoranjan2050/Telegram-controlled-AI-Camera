@@ -37,11 +37,20 @@ menu "TelegramP4 Configuration"
                 only in your local sdkconfig (gitignored) — never commit a real
                 value, never logged by the firmware.
 
+        config TELEGRAMP4_TELEGRAM_ALLOWED_CHAT_IDS
+            string "Allowed Telegram Chat IDs (comma-separated)"
+            default ""
+            help
+                Only these chat IDs may control the device. Everyone else gets
+                "Access denied." with no further detail. See
+                docs/telegram-bot-setup.md for how to find your chat ID. Leave
+                empty during setup and every command will be denied until you
+                add your ID.
+
     endmenu
 
-    # Phase 3+ adds "Allowed Chat IDs", "Camera", "Storage", etc. submenus/options
-    # here as each subsystem's Kconfig options are introduced. See
-    # docs/configuration.md for the full option reference and which phase adds
-    # each one.
+    # Phase 5+ adds "Camera", "Storage", etc. submenus/options here as each
+    # subsystem's Kconfig options are introduced. See docs/configuration.md for
+    # the full option reference and which phase adds each one.
 
 endmenu

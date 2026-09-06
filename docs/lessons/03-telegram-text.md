@@ -112,8 +112,35 @@ Add an `/id` command (not in the final command list, just for learning) that
 replies with the sender's chat ID — handy for filling in the Phase 3 whitelist
 without needing the `getUpdates` browser trick from the setup guide.
 
+## Phase 3 update — command registry and chat-ID authorization
+
+The `if`/`else` dispatch above is now a real registry:
+`telegramp4_telegram_register_command("/name", handler)`. Built-in commands
+(`/start`, `/help`, `/status`, plus a `/photo` stub replying "Not implemented yet
+- see Phase 6") are registered internally before the poll task starts. Handlers
+have the signature `void handler(int64_t chat_id, const char *args)`, so
+`/gpio 4 on` arrives as command `/gpio` with `args = "4 on"`.
+
+**Every command now goes through `telegramp4_security_is_authorized()` first.**
+Chat IDs not in `TELEGRAMP4_TELEGRAM_ALLOWED_CHAT_IDS` (Kconfig) get exactly:
+```
+Access denied.
+```
+and nothing else — the new `telegramp4_security` component never reveals *why* or
+*what* the device could otherwise do. Unrecognized commands from authorized chats
+get:
+```
+Unknown command.
+
+Use /help to see available commands.
+```
+
+Set your chat ID before testing:
+```bash
+idf.py menuconfig   # TelegramP4 Configuration -> Telegram -> Allowed Telegram Chat IDs
+```
+If you leave it empty, every command is denied — that's intentional, not a bug.
+
 ## Next lesson
 
-This lesson is updated again once Phase 3 (command registry + chat-ID
-authorization) lands, before moving on to
-[Lesson 04 — Telegram inline buttons](04-telegram-buttons.md).
+[Lesson 04 — Telegram inline buttons](04-telegram-buttons.md)
