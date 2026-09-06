@@ -51,7 +51,40 @@ Saved:
 received/voice_1725660300.ogg
 ```
 
+## Phase 13 update — voice commands
+
+Speech-to-text is added on top, as its own swappable component,
+`telegramp4_stt`, with one function: `telegramp4_stt_transcribe()`. Per the
+master spec ("make STT provider modular"), neither `telegramp4_telegram` nor
+`app_main.cpp`'s voice handler know which backend answers this call. The only
+provider implemented is OpenAI's audio transcription API (`whisper-1`) — a
+real, testable HTTPS multipart integration (unlike the camera/audio/video
+hardware stubs), disabled by default (`TELEGRAMP4_STT_ENABLED=n` in Kconfig)
+since it needs your own API key and has cost/latency implications. A local
+on-device model would slot in behind the same interface later.
+
+After Phase 12's save-and-acknowledge runs, `on_voice_received()` transcribes
+the voice bytes already in memory. On success, `parse_voice_command()` does
+simple keyword matching ("photo"/"picture" → `/photo`, "video" → `/video`,
+etc.) and — on a match — replies:
+```
+Speech recognized:
+"take a photo"
+
+Command:
+photo
+
+Executing...
+```
+then calls the new `telegramp4_telegram_dispatch(chat_id, "/photo")`, a public
+wrapper around the same internal `dispatch_command()` every typed command and
+button already goes through — never a separate execution path. No match just
+reports the recognized text. If STT is disabled or the request fails, nothing
+else happens; Phase 12's behavior is unaffected.
+
+Test: enable STT and set an API key in `idf.py menuconfig`, then send a voice
+message saying "take a photo".
+
 ## Next lesson
 
-[Lesson 12 — Voice command processing](12-ai.md) (speech-to-text arrives
-alongside the AI lessons in the build order — see docs/PHASES.md Phase 13).
+[Lesson 12 — AI object detection](12-ai.md)

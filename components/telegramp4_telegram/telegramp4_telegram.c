@@ -624,6 +624,11 @@ static void handle_incoming_voice(int64_t chat_id, cJSON *voice_obj)
     s_voice_cb(chat_id, file_id->valuestring, size, duration_s);
 }
 
+void telegramp4_telegram_dispatch(int64_t chat_id, const char *command_text)
+{
+    dispatch_command(chat_id, command_text);
+}
+
 static void process_update(cJSON *update)
 {
     cJSON *callback_query = cJSON_GetObjectItem(update, "callback_query");

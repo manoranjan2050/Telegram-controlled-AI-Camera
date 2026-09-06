@@ -51,6 +51,13 @@ which is gitignored.
 |---|---|---|
 | `TELEGRAMP4_STORAGE_MAX_DOWNLOAD_SIZE_KB` | Max size accepted for Telegram-received files | 5120 |
 
+## Speech-to-Text (Phase 13)
+
+| Option | Description | Default |
+|---|---|---|
+| `TELEGRAMP4_STT_ENABLED` | Enable cloud speech-to-text for voice commands | n |
+| `TELEGRAMP4_STT_API_KEY` | API key for the STT provider (currently OpenAI) | placeholder `sk-REPLACE_WITH_YOUR_API_KEY` |
+
 ## AI (Phase 14)
 
 | Option | Description | Default |

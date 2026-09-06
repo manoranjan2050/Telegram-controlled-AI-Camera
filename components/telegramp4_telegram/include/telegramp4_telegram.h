@@ -94,6 +94,15 @@ void telegramp4_telegram_set_photo_received_handler(telegramp4_media_received_cb
 /** Registers the handler for incoming voice messages (Phase 12). */
 void telegramp4_telegram_set_voice_received_handler(telegramp4_media_received_cb_t cb);
 
+/**
+ * Runs `command_text` (e.g. "/photo") through the exact same registry,
+ * authorization check, and unknown-command handling as a typed command or a
+ * button press. Used by Phase 13's voice-command parser so a recognized
+ * phrase executes through the one real dispatch path instead of a parallel
+ * command-execution mechanism.
+ */
+void telegramp4_telegram_dispatch(int64_t chat_id, const char *command_text);
+
 #ifdef __cplusplus
 }
 #endif

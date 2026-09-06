@@ -110,6 +110,29 @@ menu "TelegramP4 Configuration"
 
     endmenu
 
+    menu "Speech-to-Text"
+
+        config TELEGRAMP4_STT_ENABLED
+            bool "Enable voice command processing (cloud STT)"
+            default n
+            help
+                Sends received voice notes to an external speech-to-text
+                service (currently OpenAI's audio transcription API) so
+                spoken commands like "take a photo" can trigger the matching
+                /command. This uses your own API key, costs money per call,
+                and adds network latency - disabled by default. See
+                docs/lessons/12-ai.md.
+
+        config TELEGRAMP4_STT_API_KEY
+            string "STT provider API key"
+            default "sk-REPLACE_WITH_YOUR_API_KEY"
+            depends on TELEGRAMP4_STT_ENABLED
+            help
+                Stored only in your local sdkconfig (gitignored) - never
+                commit a real key, never logged by the firmware.
+
+    endmenu
+
     # Phase 14+ adds more submenus/options here as each subsystem's Kconfig
     # options are introduced. See docs/configuration.md for the full option
     # reference and which phase adds each one.

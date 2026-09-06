@@ -18,9 +18,11 @@
 #include "telegramp4_storage.h"
 #include "telegramp4_video.h"
 #include "telegramp4_audio.h"
+#include "telegramp4_stt.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <cstdlib>
+#include <cctype>
 #include <dirent.h>
 #include <cstring>
 #include <algorithm>
@@ -435,10 +437,34 @@ static void on_photo_received(int64_t chat_id, const char *file_id, size_t decla
     telegramp4_telegram_send_message(chat_id, msg);
 }
 
+/**
+ * Phase 13 - maps a recognized phrase to a registered command. Deliberately
+ * simple keyword matching; the point isn't NLP sophistication, it's that a
+ * match is dispatched through telegramp4_telegram_dispatch() - the exact same
+ * path as a typed command - never a separate execution mechanism.
+ */
+static const char *parse_voice_command(const char *text)
+{
+    char lower[128];
+    size_t i = 0;
+    for (; text[i] != '\0' && i < sizeof(lower) - 1; i++) {
+        lower[i] = (char) tolower((unsigned char) text[i]);
+    }
+    lower[i] = '\0';
+
+    if (strstr(lower, "photo") || strstr(lower, "picture")) return "/photo";
+    if (strstr(lower, "video")) return "/video";
+    if (strstr(lower, "status")) return "/status";
+    if (strstr(lower, "record")) return "/record";
+    if (strstr(lower, "storage") || strstr(lower, "sd card")) return "/storage";
+    return NULL;
+}
+
 /* --- Receive voice from Telegram (Phase 12) ---
- * Telegram voice notes are OGG/Opus - saved as-is, no decoding/transcoding
- * (that's explicitly out of scope until basic voice handling works, and
- * speech-to-text is a separate, swappable module in Phase 13). */
+ * Telegram voice notes are OGG/Opus - saved as-is, no decoding/transcoding.
+ * Phase 13 adds optional speech-to-text on top (TELEGRAMP4_STT_ENABLED),
+ * routing recognized phrases through the same command dispatch as everything
+ * else - see parse_voice_command() above and telegramp4_telegram_dispatch(). */
 static void on_voice_received(int64_t chat_id, const char *file_id, size_t declared_size, uint32_t duration_s)
 {
     size_t max_bytes = (size_t) CONFIG_TELEGRAMP4_STORAGE_MAX_DOWNLOAD_SIZE_KB * 1024;
@@ -472,7 +498,6 @@ static void on_voice_received(int64_t chat_id, const char *file_id, size_t decla
         fwrite(data, 1, len, f);
         fclose(f);
     }
-    free(data);
 
     strncpy(s_last_received_filename, filename, sizeof(s_last_received_filename) - 1);
     s_last_received_size = len;
@@ -482,6 +507,30 @@ static void on_voice_received(int64_t chat_id, const char *file_id, size_t decla
         "\xF0\x9F\x8E\x99 Voice message received.\n\nDuration: %u sec\nSaved:\nreceived/%s",
         (unsigned) duration_s, filename);
     telegramp4_telegram_send_message(chat_id, msg);
+
+    /* Phase 13: optional voice-command processing, using the bytes already in
+     * memory rather than re-reading the file we just wrote. */
+    char stt_text[256];
+    esp_err_t stt_err = telegramp4_stt_transcribe(data, len, stt_text, sizeof(stt_text));
+    free(data);
+
+    if (stt_err == ESP_OK) {
+        const char *cmd = parse_voice_command(stt_text);
+        char voice_msg[384];
+        if (cmd) {
+            snprintf(voice_msg, sizeof(voice_msg),
+                "Speech recognized:\n\"%s\"\n\nCommand:\n%s\n\nExecuting...", stt_text, cmd + 1);
+            telegramp4_telegram_send_message(chat_id, voice_msg);
+            telegramp4_telegram_dispatch(chat_id, cmd);
+        } else {
+            snprintf(voice_msg, sizeof(voice_msg),
+                "Speech recognized:\n\"%s\"\n\nNo matching command found.", stt_text);
+            telegramp4_telegram_send_message(chat_id, voice_msg);
+        }
+    }
+    /* stt_err != ESP_OK (disabled, no API key, or request failure) is not an
+     * error to the user here - Phase 12's save-and-acknowledge behavior above
+     * already completed successfully; voice commands are a bonus on top. */
 }
 
 /* /photo_info (Phase 10) */

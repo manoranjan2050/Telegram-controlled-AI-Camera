@@ -59,6 +59,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   infrastructure (added a `duration_s` field to the shared media-received
   callback) to save incoming voice notes as-is (OGG/Opus) to
   `/sdcard/received/` and acknowledge with duration - no transcoding yet.
+- **Phase 13 — Voice Commands**: new modular `telegramp4_stt` component
+  (`telegramp4_stt_transcribe()`), OpenAI Whisper as the one concrete
+  provider (real HTTPS multipart integration, disabled by default -
+  `TELEGRAMP4_STT_ENABLED`), `parse_voice_command()` keyword matching, and
+  `telegramp4_telegram_dispatch()` so a recognized voice command runs through
+  the same path as typed commands/buttons.
 
 ### Fixed
 - Partition table (two 2MB OTA slots + nvs/otadata/phy_init) needs >4MB of

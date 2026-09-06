@@ -32,7 +32,7 @@ Track progress here so a new session knows where to resume.
 - [x] Phase 10 — Receive Photo From Telegram (getFile download, size-capped, /photo_info /photo_files)
 - [x] Phase 11 — Audio Recording (task-based /record handler + abstraction written; mic driver is a stub pending hardware verification)
 - [x] Phase 12 — Receive Telegram Voice (download + save + acknowledge with duration)
-- [ ] Phase 13 — Voice Commands
+- [x] Phase 13 — Voice Commands (modular telegramp4_stt + OpenAI Whisper provider, disabled by default; real but untested against a live API key)
 - [ ] Phase 14 — AI Vision
 - [ ] Phase 15 — Telegram AI Workflow
 - [ ] Phase 16 — AI on Telegram Photos
