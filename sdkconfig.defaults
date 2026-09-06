@@ -26,6 +26,16 @@ CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
 # exact FireBeetle 2 ESP32-P4 memory configuration is verified (see docs/hardware.md)
 # rather than guessed here.
 
+# Phase 1: ESP32-P4 has no native WiFi radio - connectivity is provided by the
+# onboard ESP32-C6 co-processor, reached through the esp_wifi_remote managed
+# component (see main/idf_component.yml) instead of the classic on-chip
+# esp_wifi driver. This is confirmed from ESP-IDF's own official examples
+# (examples/protocols/mqtt/tcp/sdkconfig.ci.p4_wifi) and Kconfig
+# (components/esp_wifi/Kconfig), not guessed. The transport between P4 and C6
+# (SDIO vs SPI) on this specific board is still unconfirmed - see
+# docs/hardware.md.
+CONFIG_ESP_WIFI_REMOTE_LIBRARY_HOSTED=y
+
 # Phase 2: Telegram HTTPS client uses the ESP-IDF bundled root CA certificate
 # store for TLS validation instead of pinning Telegram's certificate directly
 # (avoids breakage if Telegram rotates their cert/CA). Certificate validation is

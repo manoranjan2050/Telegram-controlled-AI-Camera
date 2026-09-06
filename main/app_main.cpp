@@ -436,6 +436,88 @@ static void on_photo_received(int64_t chat_id, const char *file_id, size_t decla
     char msg[128];
     snprintf(msg, sizeof(msg), "\xF0\x9F\x93\xA5 Image received.\n\nFile:\n%s\n\nSize:\n%s", filename, size_str);
     telegramp4_telegram_send_message(chat_id, msg);
+
+    /* Phase 16: offer what to do next with the just-saved image. */
+    cJSON *root = cJSON_CreateObject();
+    cJSON *keyboard = cJSON_AddArrayToObject(root, "inline_keyboard");
+    struct { const char *label; const char *prefix; } buttons[] = {
+        {"\xF0\x9F\xA4\x96 Detect Objects", "/received_ai "},
+        {"\xF0\x9F\x92\xBE Save", "/received_save "},
+        {"\xF0\x9F\x97\x91 Delete", "/received_delete "},
+    };
+    for (auto &b : buttons) {
+        cJSON *row = cJSON_CreateArray();
+        char callback[64];
+        snprintf(callback, sizeof(callback), "%s%s", b.prefix, filename);
+        cJSON *btn = cJSON_CreateObject();
+        cJSON_AddStringToObject(btn, "text", b.label);
+        cJSON_AddStringToObject(btn, "callback_data", callback);
+        cJSON_AddItemToArray(row, btn);
+        cJSON_AddItemToArray(keyboard, row);
+    }
+    char *keyboard_json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    telegramp4_telegram_send_with_keyboard(chat_id, "What would you like to do?", keyboard_json);
+    free(keyboard_json);
+}
+
+/* --- AI on Telegram photos (Phase 16) --- */
+
+static void handler_received_ai(int64_t chat_id, const char *args)
+{
+    char path[160];
+    if (args[0] == '\0' || !telegramp4_storage_sanitize_path("received", args, path, sizeof(path))) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Invalid filename.");
+        return;
+    }
+    if (!telegramp4_ai_is_enabled()) {
+        telegramp4_telegram_send_message(chat_id,
+            "AI is disabled. Enable it in idf.py menuconfig -> TelegramP4 Configuration -> AI.");
+        return;
+    }
+    uint8_t *data = NULL;
+    size_t len = 0;
+    if (!read_file_into_buffer(path, &data, &len)) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C File not found.");
+        return;
+    }
+    telegramp4_ai_result_t result = {0};
+    esp_err_t err = telegramp4_ai_process_image(data, len, &result);
+    free(data);
+    if (err != ESP_OK) {
+        telegramp4_telegram_send_message(chat_id,
+            "\xE2\x9D\x8C AI inference failed: model not yet verified on this hardware.");
+        return;
+    }
+    char msg[320];
+    int off = snprintf(msg, sizeof(msg), "\xF0\x9F\xA4\x96 AI Detection\n\nDetected:\n");
+    for (int i = 0; i < result.count && off < (int) sizeof(msg); i++) {
+        off += snprintf(msg + off, sizeof(msg) - off, "%s - %u%%\n",
+                          result.detections[i].label, (unsigned) result.detections[i].confidence_pct);
+    }
+    off += snprintf(msg + off, sizeof(msg) - off, "\nInference:\n%u ms", (unsigned) result.inference_time_ms);
+    telegramp4_telegram_send_message(chat_id, msg);
+}
+
+static void handler_received_save(int64_t chat_id, const char *args)
+{
+    (void) args;
+    /* Already saved on receipt (Phase 10) - this just confirms the choice. */
+    telegramp4_telegram_send_message(chat_id, "Saved.");
+}
+
+static void handler_received_delete(int64_t chat_id, const char *args)
+{
+    char path[160];
+    if (args[0] == '\0' || !telegramp4_storage_sanitize_path("received", args, path, sizeof(path))) {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Invalid filename.");
+        return;
+    }
+    if (remove(path) == 0) {
+        telegramp4_telegram_send_message(chat_id, "Deleted.");
+    } else {
+        telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C File not found.");
+    }
 }
 
 /**
@@ -725,6 +807,9 @@ extern "C" void app_main(void)
     telegramp4_telegram_register_command("/photo_del", handler_photo_delete_cb);
     telegramp4_telegram_register_command("/photo_info", handler_photo_info);
     telegramp4_telegram_register_command("/photo_files", handler_photo_files);
+    telegramp4_telegram_register_command("/received_ai", handler_received_ai);
+    telegramp4_telegram_register_command("/received_save", handler_received_save);
+    telegramp4_telegram_register_command("/received_delete", handler_received_delete);
     telegramp4_telegram_set_photo_received_handler(on_photo_received);
     telegramp4_telegram_set_voice_received_handler(on_voice_received);
     telegramp4_telegram_register_command("/record", handler_record);

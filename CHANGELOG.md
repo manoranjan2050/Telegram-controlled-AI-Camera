@@ -71,6 +71,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **Phase 15 — Telegram AI Workflow**: `/ai` (capture -> inference -> photo +
   formatted result), reusing the same handler for the "🤖 AI Detect" menu
   button; reports a clean error while AI is disabled/unverified.
+- **Phase 16 — AI on Telegram Photos**: after a photo is received, offers
+  `[Detect Objects][Save][Delete]` buttons (`/received_ai`, `/received_save`,
+  `/received_delete`), reusing the same AI/sanitization/delete paths as
+  everywhere else.
 
 ### Fixed
 - Local ESP-IDF v5.4 tooling (`confgen`/kconfiglib) silently produced an

@@ -23,7 +23,7 @@ Product page: https://www.dfrobot.com/product-2915.html
 | Item | Value | Verified? |
 |---|---|---|
 | Main SoC | ESP32-P4 | Confirm exact revision in Phase 0 |
-| Connectivity co-processor | ESP32-C6 (Wi-Fi/BLE) | Confirm exact revision in Phase 0 |
+| Connectivity co-processor | ESP32-C6 (Wi-Fi/BLE) | Confirm exact revision in Phase 0. **Confirmed structurally important**: ESP32-P4 has no native WiFi radio at all - it reaches WiFi through the C6 via a "remote"/hosted transport (`esp_wifi_remote` managed component, `CONFIG_ESP_WIFI_REMOTE_LIBRARY_HOSTED=y`), not the classic on-chip `esp_wifi` driver. Confirmed directly from ESP-IDF v5.4's own Kconfig (`components/esp_wifi/Kconfig`: WiFi buffer options are gated `if (ESP_WIFI_ENABLED \|\| ESP_HOST_WIFI_ENABLED)`, and `ESP_WIFI_ENABLED` only defaults on for chips with `SOC_WIFI_SUPPORTED`, which P4 lacks) and official examples (`examples/protocols/mqtt/tcp/sdkconfig.ci.p4_wifi`). What's still unconfirmed: the exact P4↔C6 transport (SDIO vs SPI) this specific board uses, and its pin mapping. |
 | Flash size | Assumed 8MB in `sdkconfig.defaults` (`CONFIG_ESPTOOLPY_FLASHSIZE_8MB`) so the two-OTA-slot partition table fits | **Unconfirmed** — needed at least >4.1MB for the current partition table; 8MB was picked as a conservative common size, not read off a datasheet. Adjust if the real board differs. |
 | PSRAM size | TBD | Verify in Phase 0 |
 | Camera connector | MIPI-CSI | Confirm connector pinout/FPC type in Phase 5 |

@@ -19,6 +19,17 @@ FireBeetle 2 ESP32-P4 board, USB-connected. A 2.4 GHz Wi-Fi network to connect t
 (confirm your board's supported bands against DFRobot's documentation — see
 [hardware.md](../hardware.md)).
 
+> **Important architecture note, confirmed while getting this to actually
+> build:** ESP32-P4 has no on-chip WiFi radio at all. WiFi is provided by the
+> onboard ESP32-C6 co-processor, reached through ESP-IDF's `esp_wifi_remote`
+> managed component (a drop-in replacement for the classic `esp_wifi` driver
+> that proxies calls to the C6 over a "hosted" transport) rather than the
+> normal on-chip WiFi path other ESP32 chips use. This is why
+> `main/idf_component.yml` depends on `espressif/esp_wifi_remote` and
+> `sdkconfig.defaults` sets `CONFIG_ESP_WIFI_REMOTE_LIBRARY_HOSTED=y`. The
+> `telegramp4_wifi` application code itself is unaffected — it just calls the
+> normal `esp_wifi_*` APIs, which `esp_wifi_remote` makes work transparently.
+
 ## Wiring
 
 None — the ESP32-C6 connectivity subsystem handles Wi-Fi onboard.
