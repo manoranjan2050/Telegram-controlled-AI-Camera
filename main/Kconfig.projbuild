@@ -64,6 +64,41 @@ menu "TelegramP4 Configuration"
             int "Capture frame height"
             default 600
 
+        comment "Pins below confirmed from DFRobot DFR1172 schematic (2026-09-07): SCL=8/SDA=7 wired to the CSI connector's I2C lines; the connector has no reset/pwdn/xclk signal at all (sensor is MIPI-clocked), hence reset/pwdn/xclk default -1 (unused)."
+
+        config TELEGRAMP4_CAMERA_SCCB_I2C_PORT
+            int "SCCB (I2C) port number"
+            default 0
+
+        config TELEGRAMP4_CAMERA_SCCB_SCL_PIN
+            int "SCCB (I2C) SCL pin"
+            default 8
+
+        config TELEGRAMP4_CAMERA_SCCB_SDA_PIN
+            int "SCCB (I2C) SDA pin"
+            default 7
+
+        config TELEGRAMP4_CAMERA_SCCB_I2C_FREQ
+            int "SCCB (I2C) frequency (Hz)"
+            default 100000
+
+        config TELEGRAMP4_CAMERA_RESET_PIN
+            int "Camera sensor reset pin (-1 = not connected)"
+            default -1
+
+        config TELEGRAMP4_CAMERA_PWDN_PIN
+            int "Camera sensor power-down pin (-1 = not connected)"
+            default -1
+
+        config TELEGRAMP4_CAMERA_XCLK_PIN
+            int "Camera sensor XCLK pin (-1 = not driven by host)"
+            default -1
+
+        config TELEGRAMP4_CAMERA_XCLK_FREQ
+            int "Camera sensor XCLK frequency (Hz), if XCLK_PIN >= 0"
+            default 24000000
+            depends on TELEGRAMP4_CAMERA_XCLK_PIN >= 0
+
     endmenu
 
     menu "Storage"

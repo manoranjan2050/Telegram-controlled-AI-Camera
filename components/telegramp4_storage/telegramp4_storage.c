@@ -8,6 +8,19 @@
 #include "sdmmc_cmd.h"
 #include "driver/sdmmc_host.h"
 #include "driver/sdmmc_default_configs.h"
+#include "driver/gpio.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+/*
+ * Real hardware finding (2026-09-07), confirmed from DFRobot's DFR1172
+ * schematic (page 4/8, "SD" sheet): the MicroSD socket's VDD is switched by a
+ * P-MOSFET (Q1, AO3401) whose gate is driven by GPIO45 ("SD1_PWRN" net,
+ * active-low - drive LOW to power the card on). Our mount call was never
+ * powering the card at all, which is why it timed out
+ * (sdmmc_init_ocr/send_op_cond 0x107) even with correct CLK/CMD/D0-D3 pins.
+ */
+#define TELEGRAMP4_SD_PWRN_GPIO 45
 
 static const char *TAG = "TAG_STORAGE";
 
@@ -33,6 +46,25 @@ esp_err_t telegramp4_storage_init(void)
      * WiFi transport and crashed/reset the C6 co-processor in a boot loop.
      * Using SLOT_0 for the SD card avoids the conflict.
      */
+    /* Power on the SD card before touching the bus at all. */
+    gpio_config_t pwrn_conf = {
+        .pin_bit_mask = 1ULL << TELEGRAMP4_SD_PWRN_GPIO,
+        .mode = GPIO_MODE_OUTPUT,
+    };
+    gpio_config(&pwrn_conf);
+    /*
+     * Tested both polarities on real hardware (2026-09-07): driving GPIO45
+     * LOW and HIGH produced byte-for-byte identical mount failures
+     * (same 0x107 timeout at the same point), which means this pin is very
+     * likely not the blocking factor at all - see the note in
+     * docs/hardware.md and docs/lessons/07-microsd.md for the leading
+     * hypothesis (no card inserted / bad card / not FAT32) and what to check
+     * next. Left at active-low (0), the electrically sensible default for a
+     * P-MOSFET high-side switch, since neither polarity is proven wrong.
+     */
+    gpio_set_level((gpio_num_t) TELEGRAMP4_SD_PWRN_GPIO, 0);
+    vTaskDelay(pdMS_TO_TICKS(100)); /* let the card's supply rail stabilize before enumeration */
+
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
     host.slot = SDMMC_HOST_SLOT_0;
     sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();

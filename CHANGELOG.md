@@ -3,6 +3,62 @@
 All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - 2026-09-07 (real hardware, round 2)
+
+WiFi + Telegram bot + button menu confirmed stable on real hardware
+(`@ESP3P4AIbot`). The user provided DFRobot's actual DFR1172 schematic and
+identified the installed camera module (Raspberry Pi Camera Module v1.3 /
+OV5647 sensor), which unlocked real fixes instead of guesses:
+
+### Added
+- **Real OV5647 camera driver** (`telegramp4_camera`) using `espressif/esp_video`
+  + `esp_cam_sensor` (V4L2-style capture + JPEG M2M encode). Confirmed via
+  schematic: SCCB SCL=GPIO8/SDA=GPIO7, no reset/pwdn/xclk pin exists on this
+  board's CSI connector at all. **Sensor detection confirmed live**:
+  `ov5647: Detected Camera sensor PID=0x5647`. Full JPEG capture is still
+  blocked on the PSRAM/ESP-Hosted issue below.
+- **SD card power gate fix**: schematic revealed the MicroSD socket's power is
+  switched by a P-MOSFET gated by GPIO45 (`SD1_PWRN`, active-low), never
+  driven by earlier firmware - the card had no power at all, which is why it
+  timed out even with correct bus pins. `telegramp4_storage_init()` now
+  drives GPIO45 low before mounting.
+- Confirmed via DFRobot's own wiki spec table + boot log: **16MB flash, 32MB
+  in-package PSRAM** (chip variant ESP32-P4NRW32). `sdkconfig.defaults`
+  corrected from the earlier 8MB placeholder to `CONFIG_ESPTOOLPY_FLASHSIZE_16MB`.
+
+### Fixed
+- `MAX_COMMANDS` in the Telegram command registry was too small (32) for the
+  ~30 commands the full app now registers - `/menu` and `/settings` silently
+  failed to register (`Command registry full`). Bumped to 64.
+- Four FreeRTOS tasks that make HTTPS calls (`telegram_poll_task`,
+  `video_record_task`, `audio_record_task`, `motion_task`) had 2-8KB stacks -
+  too small once mbedTLS/esp_http_client's own stack usage stacks on top of
+  this project's multi-KB local URL buffers. Hit an actual
+  "Guru Meditation Error: Stack protection fault" on hardware. Bumped all
+  four to 16KB.
+- `esp_http_client`'s default internal buffer (512B) was too small for
+  longer URL-encoded GET requests (the `/start` menu's inline-keyboard JSON),
+  failing with `HTTP_CLIENT: Out of buffer`. Raised `buffer_size`/
+  `buffer_size_tx` to 4096 in `telegramp4_telegram.c`.
+- A vendored managed-component script
+  (`managed_components/espressif__esp_ipa/tools/config/esp_ipa_config.py`)
+  naively splits its input file path on whitespace, breaking because this
+  project lives under `D:\My Project\...` (a path with a space). Patched
+  in place - see CLAUDE.md for why this patch doesn't survive a clean
+  managed-components fetch and how to reapply it.
+
+### Known issue (not yet fixed)
+- **Enabling `CONFIG_SPIRAM=y` boot-loops the device.** PSRAM itself
+  initializes correctly (`Found 32MB PSRAM device`, memory test passes), but
+  ESP-Hosted's very early static task creation then hits
+  `assert failed: xTaskCreateStaticPinnedToCore ... xPortCheckValidTCBMem`
+  before `app_main()` even runs. Root cause not yet identified. PSRAM is
+  disabled in `sdkconfig.defaults` for now (commented out, not deleted) so
+  WiFi/Telegram/SD stay on the last known-stable configuration. This blocks
+  real JPEG capture, since the camera's frame buffers need PSRAM (~1.28MB for
+  two 800x800 RAW8 buffers, well over internal L2MEM budget). Next session
+  should start here.
+
 ## [1.0.0] - 2026-09-06
 
 All 22 build phases implemented and **build-verified** with ESP-IDF v5.4.1

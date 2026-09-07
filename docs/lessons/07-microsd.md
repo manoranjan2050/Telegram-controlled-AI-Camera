@@ -6,16 +6,43 @@ Mount the MicroSD card, create the standard directory layout, and add
 `/files`, `/storage`, `/delete` — with every filename sanitized before it
 touches the filesystem.
 
-## ⚠️ Hardware verification status
+## ✅ Hardware confirmed 2026-09-07
 
-SDMMC pins default to **ESP-IDF's own SoC-level reference default for
-ESP32-P4** (`SDMMC_SLOT_CONFIG_DEFAULT()`: CLK=43, CMD=44, D0=39, D1=40, D2=41,
-D3=42 — found directly in the installed ESP-IDF v5.4 source at
-`components/esp_driver_sdmmc/include/driver/sdmmc_default_configs.h`). This is
+SDMMC pins use **ESP-IDF's own SoC-level reference default for ESP32-P4**
+(`SDMMC_SLOT_CONFIG_DEFAULT()`: CLK=43, CMD=44, D0=39, D1=40, D2=41, D3=42).
+Reading DFRobot's actual DFR1172 schematic confirmed these are exactly the
+pins this board wires the MicroSD socket to (`SD1_*` nets, schematic page 1) —
+not a coincidence, this board follows the chip's reference pinout. Mounting on
+`SDMMC_HOST_SLOT_0` (not the default `SLOT_1`, which the WiFi/C6 link uses)
+was the first real hardware fix.
+
+The schematic also revealed something the pins alone don't tell you: the SD
+socket's power (VDD) is switched by a P-MOSFET (`Q1`, AO3401) gated by
+**GPIO45** (net `SD1_PWRN`). `telegramp4_storage_init()` configures GPIO45 as
+an output and waits 100ms for the supply rail to stabilize before touching
+the SDMMC bus.
+
+**Real-hardware result: this alone did not fix the mount.** Both polarities
+(GPIO45 driven LOW and HIGH) were tested live and produced byte-for-byte
+identical `0x107`/`ESP_ERR_TIMEOUT` failures at the same point every time —
+which means this pin is very likely *not* the actual blocking factor (a
+genuine polarity bug would behave differently one way vs. the other). The
+leading hypothesis is now something outside firmware's control: no card
+actually seated in the slot, an incompatible/bad card, or a card not
+formatted FAT32. See [docs/hardware.md](../hardware.md) for the full
+writeup and next steps (try a different known-good FAT32 card; if still
+failing, probe the socket's VDD pin with a multimeter while booting).
+
+<details>
+<summary>Original 2026-09-06 note (kept for history)</summary>
+
+This is
 a real, documented default for the chip, not a guess — but it is **not**
 confirmed to match how DFRobot wired the SD slot on this specific board. If
 mounting fails on real hardware, this is the first thing to check against
 DFRobot's schematic (see [docs/hardware.md](../hardware.md)).
+
+</details>
 
 ## What you learn
 

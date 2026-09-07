@@ -19,6 +19,22 @@ Product page: https://www.dfrobot.com/product-2915.html
 
 Track progress here so a new session knows where to resume.
 
+**Real hardware test log (2026-09-07, FireBeetle 2 ESP32-P4 DFR1172):**
+- ✅ WiFi connects reliably (`esp_wifi_remote` over SDIO to the C6)
+- ✅ Telegram bot connects and responds (`@ESP3P4AIbot`), button menu works
+- ✅ Camera sensor detected live: `ov5647: Detected Camera sensor PID=0x5647`
+  (SCCB pins from the schematic are correct) — but JPEG capture pipeline
+  fails to open its device (`/dev/video10`), because it needs PSRAM and
+  PSRAM is currently disabled (see the known issue below)
+- ❌ SD card still fails to mount (`ESP_ERR_TIMEOUT`/`0x107`) even after
+  driving the power-gate GPIO45 low — see docs/lessons/07-microsd.md and
+  the note in docs/hardware.md; next things to try: longer power-on delay,
+  opposite GPIO45 polarity, or GPIO45 may be internally reserved by the
+  in-package PSRAM on the NRW32 variant and not usable as a plain GPIO
+- ⚠️ **Known blocker**: `CONFIG_SPIRAM=y` boot-loops the device (ESP-Hosted
+  static task creation assert) — disabled for now, root cause not found.
+  This is the next thing to fix; it blocks real camera capture entirely.
+
 - [x] Phase 0 — Project Bootstrap (code written; build verification pending ESP-IDF install)
 - [x] Phase 1 — Wi-Fi (code written; build verification pending ESP-IDF install)
 - [x] Phase 2 — Telegram Basic (code written; build verification pending ESP-IDF install)
@@ -126,6 +142,26 @@ See spec §5 for the full target tree (`main/`, `components/telegramp4_*`, `docs
   ```
   Skipping the `PATH` prepend causes `export.ps1` to pick the system Python 3.14
   again and the build to fail with "undeclared CONFIG_ option" errors.
+- **A vendored managed-component script needed a local patch.** Once the
+  camera (Phase 5) pulled in `espressif/esp_video`/`esp_cam_sensor`, the build
+  started failing with `json.decoder.JSONDecodeError` inside
+  `managed_components/espressif__esp_ipa/tools/config/esp_ipa_config.py`. Root
+  cause: that script does `input.split()` on the `-i` file path with no
+  quoting awareness, and our project lives under `D:\My Project\...` — a path
+  containing a space — so it splits the single path into garbage fragments
+  and fails to open a real file. A Windows directory junction workaround
+  (`C:\esp\proj` → this folder) did **not** help, because something in the
+  toolchain canonicalizes back to the real path anyway. The actual fix:
+  `managed_components/espressif__esp_ipa/tools/config/esp_ipa_config.py`
+  is patched in place (a few lines, clearly commented "Patched
+  2026-09-07") to use the string as-is when it's already a single existing
+  file, instead of blindly splitting on whitespace. **This patch lives under
+  `managed_components/`, which is gitignored and gets wiped by
+  `idf.py fullclean` / a fresh `idf.py build` on a machine without it
+  already fetched** — if the build starts failing with this exact
+  `JSONDecodeError` again after a clean managed-components fetch, re-apply
+  the same one-line fix (or move/rename the project so its full path has no
+  spaces, which avoids needing the patch at all).
 - No hardware-in-the-loop testing from this chat session unless the user explicitly
   connects and flashes a board and reports back results. Every phase's code has
   been build-verified (compiles + links) as of Phase 22, but nothing has run on

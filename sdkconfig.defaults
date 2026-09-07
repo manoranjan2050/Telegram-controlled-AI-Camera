@@ -16,15 +16,25 @@ CONFIG_LOG_DEFAULT_LEVEL_INFO=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/partitions.csv"
 
-# The two-OTA-slot partition table needs >4MB of flash. 8MB is a conservative
-# assumption pending confirmation of the FireBeetle 2 ESP32-P4's actual flash
-# size (see docs/hardware.md) - raise this if the real board has more and you
-# want larger OTA slots, or lower it (and shrink partitions.csv) if it has less.
-CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+# Confirmed 2026-09-07 from DFRobot's own DFR1172 wiki spec table and the
+# boot log ("Detected size(16384k)..."): this board's chip variant is
+# ESP32-P4NRW32 with 16MB flash and 32MB in-package PSRAM.
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 
-# PSRAM/camera/video/AI-specific sdkconfig options are added in Phase 5/14 once the
-# exact FireBeetle 2 ESP32-P4 memory configuration is verified (see docs/hardware.md)
-# rather than guessed here.
+# PSRAM itself inits fine when enabled ("esp_psram: Found 32MB PSRAM device",
+# "SPI SRAM memory test OK") - but with CONFIG_SPIRAM=y, ESP-Hosted's very
+# early boot-time static task creation (before app_main even runs) hits
+# `assert failed: xTaskCreateStaticPinnedToCore ...
+# xPortCheckValidTCBMem(pxTaskBuffer)` and boot-loops. Root cause not yet
+# understood (a heap-layout side effect of adding the PSRAM pool, most
+# likely) - needs real investigation, not a guessed Kconfig toggle. Left
+# disabled for now so WiFi/Telegram/SD stay on the last known-good, tested
+# configuration. Camera JPEG capture needs PSRAM for frame buffers
+# (roughly 1.28MB for two 800x800 RAW8 buffers, more than the ~768KB
+# internal L2MEM has room for) so this must be resolved before /photo can
+# actually produce an image - see CLAUDE.md and docs/hardware.md.
+# CONFIG_SPIRAM=y
+# CONFIG_SPIRAM_MODE_OCT=y
 
 # Phase 1: ESP32-P4 has no native WiFi radio - connectivity is provided by the
 # onboard ESP32-C6 co-processor, reached through the esp_wifi_remote managed
@@ -42,3 +52,8 @@ CONFIG_ESP_WIFI_REMOTE_LIBRARY_HOSTED=y
 # never disabled — see docs/security.md.
 CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
 CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y
+
+# Phase 5: real camera sensor, identified 2026-09-07 as OV5647 (the installed
+# module is a Raspberry Pi Camera Module v1.3). Officially supported by
+# Espressif's esp_cam_sensor component over MIPI-CSI on ESP32-P4.
+CONFIG_CAMERA_OV5647=y

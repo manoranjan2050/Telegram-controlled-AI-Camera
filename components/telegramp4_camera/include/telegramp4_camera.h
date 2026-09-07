@@ -1,21 +1,20 @@
 /**
  * telegramp4_camera — camera abstraction (Phase 5).
  *
- * IMPORTANT — hardware verification status: the exact MIPI-CSI camera sensor
- * shipped/recommended with the FireBeetle 2 ESP32-P4 AI Vision Board, and the
- * exact Espressif driver stack that supports it (esp32-camera vs the newer
- * esp-video/esp_cam_sensor V4L2-style stack — ESP32-P4's MIPI-CSI interface is
- * not the classic DVP interface older esp32-camera targets), was NOT verified
- * against live DFRobot/Espressif documentation before this code was written
- * (web access was unavailable in the development session). See
- * docs/hardware.md for what's confirmed vs. still TBD.
+ * Sensor: OV5647 (identified 2026-09-07 as the sensor on a physically
+ * installed Raspberry Pi Camera Module v1.3), driven via Espressif's
+ * esp_video (V4L2-style API) + esp_cam_sensor components over MIPI-CSI.
+ * Officially supported on ESP32-P4 per esp_cam_sensor's own documentation.
  *
- * This component therefore provides the real abstraction/interface and
- * Kconfig scaffolding, but telegramp4_camera_init()/capture() return
- * ESP_ERR_NOT_SUPPORTED with a clear log message until someone with the board
- * verifies the sensor/driver and fills in telegramp4_camera.c accordingly.
- * DO NOT report a successful photo capture until this has actually been done
- * and tested on hardware.
+ * ⚠️ Still unverified for this specific board: the SCCB (I2C) pins, sensor
+ * reset/power-down pins, and XCLK pin/source this DFRobot board's CSI
+ * connector actually wires to the sensor. These are exposed as Kconfig
+ * options (see the `Camera` submenu) defaulting to the same placeholder
+ * values Espressif's own "customized development board" example uses
+ * (SCL=8, SDA=7, reset/pwdn/xclk unset) — not blind guesses, but not
+ * confirmed against this board's schematic either. If `telegramp4_camera_init()`
+ * fails, this pin mapping is the first thing to check (a failed SCCB I2C
+ * transaction to the sensor is the most likely cause) — see docs/hardware.md.
  */
 #pragma once
 
@@ -29,7 +28,7 @@ extern "C" {
 #endif
 
 typedef struct {
-    uint8_t *data; /* JPEG bytes */
+    uint8_t *data; /* JPEG bytes, heap-allocated - caller frees via telegramp4_camera_release_frame() */
     size_t   len;
 } telegramp4_camera_frame_t;
 

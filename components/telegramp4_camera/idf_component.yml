@@ -1,0 +1,16 @@
+# Real camera driver (Phase 5), confirmed 2026-09-07: the installed module is
+# a Raspberry Pi Camera Module v1.3, which uses the OV5647 sensor - a sensor
+# esp_cam_sensor officially supports over MIPI-CSI on ESP32-P4. esp_video
+# provides the V4L2-style capture + JPEG-encode API used in
+# telegramp4_camera.c. SCCB/reset/pwdn/xclk pin wiring on this specific
+# board is still unconfirmed - see docs/hardware.md.
+dependencies:
+  idf: ">=5.3"
+  espressif/esp_video:
+    version: ">=0.1.0"
+    rules:
+      - if: "target in [esp32p4]"
+  espressif/esp_cam_sensor:
+    version: ">=2.0.0"
+    rules:
+      - if: "target in [esp32p4]"

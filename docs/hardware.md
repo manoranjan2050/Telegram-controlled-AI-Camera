@@ -2,51 +2,38 @@
 
 ## Primary board
 
-**DFRobot FireBeetle 2 ESP32-P4 AI Vision Board**
+**DFRobot FireBeetle 2 ESP32-P4 (DFR1172, "P4R32")**
 Product page: https://www.dfrobot.com/product-2915.html
+Wiki: https://wiki.dfrobot.com/dfr1172/
+Schematic: https://dfimg.dfrobot.com/wiki/21103/DFR1172_firebeetle-esp32-p4r32-development-board_schematics_V1.0.pdf
+Datasheet: https://dfimg.dfrobot.com/wiki/21103/DFR1172_firebeetle-esp32-p4r32-development-board_datasheet_V1.0.pdf
 
-> ⚠️ This document is a placeholder until Phase 0 (and the relevant later phases)
-> actually verify each detail against current DFRobot/Espressif documentation and,
-> where possible, real hardware. Do not treat unconfirmed rows below as fact — they
-> are known-unknowns to check, not assumptions to build against.
->
-> **Status as of the initial code-writing pass (2026-09-06):** web search/fetch
-> tools were unavailable in that development session, so none of the rows below
-> could be checked against live DFRobot/Espressif documentation. Camera, MicroSD,
-> microphone, display, and GPIO-whitelist code was written as an abstraction
-> layer with Kconfig-exposed, placeholder pin values rather than guessed pin
-> numbers — see each component's header comment for what's stubbed vs. real. This
-> table must be filled in from the actual product page/wiki/schematic
-> (https://www.dfrobot.com/product-2915.html) and confirmed on real hardware
-> before trusting any of it.
->
-> **Update 2026-09-07 — first real hardware test.** WiFi + Telegram bot
-> (`/start`, menu buttons, chat-ID whitelist) confirmed working end-to-end on
-> an actual FireBeetle 2 ESP32-P4. Found and fixed on hardware: (1) the
-> MicroSD SDMMC host must use `SDMMC_HOST_SLOT_0` — slot 1 is occupied by the
-> ESP32-C6 WiFi link over SDIO and collided, crashing the WiFi transport; (2)
-> several FreeRTOS tasks that make HTTPS calls needed 16KB stacks, not
-> 2-8KB — undersized stacks caused a real stack-overflow panic; (3)
-> `esp_http_client`'s default internal buffer (512B) is too small for our
-> longer URL-encoded requests (inline keyboards, long status text) and needed
-> raising to 4096. SD card mounting still fails (`0x107`/timeout) even on
-> slot 0 — the exact GPIO pins this board wires the MicroSD to are still
-> unconfirmed (SDMMC_SLOT_CONFIG_DEFAULT()'s pins are a chip-level default,
-> not read off this board's schematic).
+> **History:** this table started as an unverified placeholder (2026-09-06,
+> written before web/hardware access). On 2026-09-07 it was fully verified
+> against the real device: first live hardware testing (WiFi/Telegram/button
+> menu working end-to-end), then the user provided the actual DFRobot wiki
+> and schematic links, which were read directly (schematic pages rendered to
+> images and inspected pin-by-pin) to confirm SD card and camera wiring, and
+> the wiki's own spec table confirmed flash/PSRAM size. Every "Confirmed"
+> row below is backed by one of those two sources, not inferred.
 
-| Item | Value | Verified? |
+| Item | Value | Source |
 |---|---|---|
-| Main SoC | ESP32-P4 | Confirm exact revision in Phase 0 |
-| Connectivity co-processor | ESP32-C6 (Wi-Fi/BLE) | Confirm exact revision in Phase 0. **Confirmed structurally important**: ESP32-P4 has no native WiFi radio at all - it reaches WiFi through the C6 via a "remote"/hosted transport (`esp_wifi_remote` managed component, `CONFIG_ESP_WIFI_REMOTE_LIBRARY_HOSTED=y`), not the classic on-chip `esp_wifi` driver. Confirmed directly from ESP-IDF v5.4's own Kconfig (`components/esp_wifi/Kconfig`: WiFi buffer options are gated `if (ESP_WIFI_ENABLED \|\| ESP_HOST_WIFI_ENABLED)`, and `ESP_WIFI_ENABLED` only defaults on for chips with `SOC_WIFI_SUPPORTED`, which P4 lacks) and official examples (`examples/protocols/mqtt/tcp/sdkconfig.ci.p4_wifi`). What's still unconfirmed: the exact P4↔C6 transport (SDIO vs SPI) this specific board uses, and its pin mapping. |
-| Flash size | Assumed 8MB in `sdkconfig.defaults` (`CONFIG_ESPTOOLPY_FLASHSIZE_8MB`) so the two-OTA-slot partition table fits | **Unconfirmed** — needed at least >4.1MB for the current partition table; 8MB was picked as a conservative common size, not read off a datasheet. Adjust if the real board differs. |
-| PSRAM size | TBD | Verify in Phase 0 |
-| Camera connector | MIPI-CSI | Confirm connector pinout/FPC type in Phase 5 |
-| Bundled/recommended camera sensor | TBD | Confirm in Phase 5 |
-| MicroSD interface | SDMMC, 4-bit, using ESP-IDF's SoC-default pins for ESP32-P4 (CLK=43 CMD=44 D0=39 D1=40 D2=41 D3=42) | **Unconfirmed for this board** — this is Espressif's chip-level reference default (`SDMMC_SLOT_CONFIG_DEFAULT()`), not something read off a DFRobot schematic. Verify before trusting it. |
-| Microphone interface | TBD (I2S/PDM) — `telegramp4_audio_record()` is a stub | Confirm in Phase 11 before implementing capture |
-| Display connector | MIPI-DSI (optional) — `telegramp4_display_init()` is a stub | Confirm panel/driver in Phase 20 before implementing |
-| Available GPIO for user peripherals (incl. PIR) | TBD, defaults unset (`-1`) | Confirm safe/free pins in Phase 17/19 before setting `TELEGRAMP4_MOTION_PIR_GPIO` / `TELEGRAMP4_GPIO_WHITELIST` |
-| Power input | TBD | Confirm in Phase 0 |
+| Main chip | ESP32-P4NRW32 (QFN104), confirmed from schematic page 1 (`U1`) | Schematic |
+| Connectivity co-processor | ESP32-C6-MINI-1-N4, confirmed from schematic page 7 (`U3`) | Schematic |
+| WiFi transport | ESP32-P4 has no native WiFi radio - reaches WiFi through the C6 via SDIO, using `esp_wifi_remote` (`CONFIG_ESP_WIFI_REMOTE_LIBRARY_HOSTED=y`). SDIO pins: CLK=GPIO18, CMD=GPIO19, D0=GPIO14, D1=GPIO15, D2=GPIO16, D3=GPIO17 (schematic page 7, net names `SDIO_*`) - these also appear directly in the ESP-Hosted boot log. | Schematic + boot log, confirmed working live |
+| Flash size | **16MB** | DFRobot wiki spec table ("Flash 16MB") + confirmed by boot log ("Detected size(16384k)") |
+| PSRAM size | **32MB, in-package** (part of the NRW32 chip variant) | DFRobot wiki spec table ("PSRAM 32MB") + ESP32-P4 datasheet (NRW32 = 32MB in-package PSRAM) |
+| Camera connector | MIPI-CSI (2-lane), schematic page 2 (`J1`) | Schematic |
+| Camera sensor | **OV5647** - the installed module is a Raspberry Pi Camera Module v1.3, confirmed by reading the module's own PCB silkscreen | User-confirmed (physical module inspection) |
+| Camera SCCB (I2C) pins | SCL=**GPIO8**, SDA=**GPIO7** (schematic page 1 pins 8/7, net `ESP_SCL`/`ESP_SDA`, routed to CSI connector page 2) | Schematic |
+| Camera reset/pwdn/xclk | **Not connected** - the CSI connector (page 2) only carries the 2 MIPI diff pairs, I2C, and two unused IO pins (`CSI_IO0`/`CSI_IO1`, the latter marked NC) - no reset, power-down, or XCLK signal is routed from the P4 to the sensor at all | Schematic |
+| MicroSD interface | SDMMC, 4-bit, `SDMMC_HOST_SLOT_0` (slot 1 is used by the WiFi/C6 link). CLK=GPIO43, CMD=GPIO44, D0=GPIO39, D1=GPIO40, D2=GPIO41, D3=GPIO42 (schematic page 1, net names `SD1_*`) - these happen to match ESP-IDF's own `SDMMC_SLOT_CONFIG_DEFAULT()` for ESP32-P4 exactly | Schematic |
+| MicroSD power gate | The SD socket's VDD is switched by a P-MOSFET (`Q1`, AO3401) gated by **GPIO45** (net `SD1_PWRN`). `telegramp4_storage_init()` drives GPIO45 low with a 100ms settle delay before mounting. **Tested both polarities on real hardware** (LOW and HIGH) — both produced byte-for-byte identical `0x107`/`ESP_ERR_TIMEOUT` mount failures, at the same point, every time. This pin is therefore very likely **not** the actual blocking factor (ruled out: GPIO45 being PSRAM-reserved — confirmed a normal unrestricted GPIO in the ESP32-P4 datasheet's pin table). **Leading hypothesis now: no card inserted, a bad/incompatible card, or a card not formatted FAT32** — none of which firmware can distinguish from a genuine pin-wiring bug without an oscilloscope/multimeter on the SD socket. Next steps for whoever has the physical board: (1) confirm a card is actually seated in the slot; (2) try a different, known-good, FAT32-formatted MicroSD card; (3) if it still fails, probe the SD socket's VDD pin with a multimeter while booting to confirm GPIO45 is actually switching power at all (could indicate R4's 51K pull-down or the MOSFET itself behaves differently than assumed). | Schematic (page 4) + live hardware test (inconclusive on root cause, but power-gate polarity ruled out as the sole cause) |
+| Microphone | MSM261DGT003 PDM MIC (schematic page 6, `U4`), I2S_DATA/I2S_CLK nets - **not yet traced to specific P4 GPIOs**, needed before Phase 11 capture works | Schematic (partial) |
+| Display connector | MIPI-DSI (`J2`, schematic page 2), same SCL/SDA I2C lines as camera, no other GPIO signals routed | Schematic |
+| Available GPIO for user peripherals (incl. PIR) | Not yet cross-referenced against this schematic - default unset (`-1`) until confirmed free | Confirm before setting `TELEGRAMP4_MOTION_PIR_GPIO` / `TELEGRAMP4_GPIO_WHITELIST` |
+| USB | Two USB-C ports: `USBC` (page 3, `U8`) used for flashing/serial (shows as VID_303A/PID_1001 "USB Serial Device" + "USB JTAG/serial debug unit"), `USB1`/`TYPEC` (page 3, `U5`) wired to the P4's other USB PHY | Schematic + boot log |
 
 ## Expected peripheral tree (spec §3)
 
