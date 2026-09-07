@@ -24,7 +24,17 @@ esp_err_t telegramp4_storage_init(void)
         .allocation_unit_size = 16 * 1024,
     };
 
+    /*
+     * Real hardware finding (2026-09-07): ESP32-P4's WiFi connectivity goes
+     * through the onboard ESP32-C6 over SDIO using the SDMMC host peripheral's
+     * SLOT_1 (confirmed in the boot log: "SDIO master: Slot 1" from
+     * ESP-Hosted). SDMMC_HOST_DEFAULT() also defaults to SLOT_1, so
+     * initializing the SD card with the default host config collided with the
+     * WiFi transport and crashed/reset the C6 co-processor in a boot loop.
+     * Using SLOT_0 for the SD card avoids the conflict.
+     */
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+    host.slot = SDMMC_HOST_SLOT_0;
     sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
     slot_config.width = 4;
 

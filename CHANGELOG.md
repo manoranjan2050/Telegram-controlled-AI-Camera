@@ -137,4 +137,28 @@ pending a real board.
   motion detection was disabled (the default), breaking the build for code
   that references the constant unconditionally. Removed the dependency.
 
+## [Unreleased]
+
+### Fixed — found on real hardware (2026-09-07)
+First actual flash to a FireBeetle 2 ESP32-P4. WiFi + Telegram bot
+(`/start`, button menu, chat-ID whitelist) now confirmed working end-to-end.
+- MicroSD mount used `SDMMC_HOST_SLOT_1` (the `SDMMC_HOST_DEFAULT()` default),
+  which is the same hardware slot ESP-Hosted uses for the WiFi link to the
+  ESP32-C6 over SDIO. This crashed/reset the WiFi transport in a boot loop
+  the moment storage init ran. Switched to `SDMMC_HOST_SLOT_0`.
+- `telegram_poll_task`, `video_record_task`, `audio_record_task`, and
+  `motion_task` all make HTTPS calls but had 2-8KB stacks; real hardware hit
+  a "Guru Meditation Error: Stack protection fault" the first time a command
+  handler actually ran an HTTPS round trip. Bumped all four to 16KB.
+- `esp_http_client`'s default internal buffer (512 bytes) was too small once
+  a request URL got long (the inline-keyboard JSON for `/start`'s menu, or a
+  long status reply), failing outright with `HTTP_CLIENT: Out of buffer`.
+  Set `buffer_size`/`buffer_size_tx` to 4096.
+
+**Still open:** SD card mount still times out (`0x107`) even on slot 0 — the
+MicroSD GPIO pins for this specific board are still unconfirmed (current
+code uses ESP-IDF's chip-level default pins, not this board's schematic).
+Camera driver is still a stub — a camera module has been physically
+installed but the sensor/driver work itself hasn't started.
+
 See [CLAUDE.md](CLAUDE.md) for the live progress checklist.

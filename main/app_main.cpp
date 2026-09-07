@@ -449,7 +449,10 @@ static void handler_video(int64_t chat_id, const char *args)
     task_args->chat_id = chat_id;
     task_args->duration_s = (uint32_t) seconds;
 
-    if (xTaskCreate(video_record_task, "video_record", 8192, task_args, 5, NULL) != pdPASS) {
+    /* 16KB: this task makes HTTPS calls (send_message/send_document), which
+     * caused a real stack-overflow crash at 8KB on hardware - see the note on
+     * telegram_poll_task's stack size in telegramp4_telegram.c. */
+    if (xTaskCreate(video_record_task, "video_record", 16384, task_args, 5, NULL) != pdPASS) {
         free(task_args);
         telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Failed to start recording task.");
     }
@@ -1087,7 +1090,8 @@ static void handler_record(int64_t chat_id, const char *args)
     task_args->chat_id = chat_id;
     task_args->duration_s = (uint32_t) seconds;
 
-    if (xTaskCreate(audio_record_task, "audio_record", 8192, task_args, 5, NULL) != pdPASS) {
+    /* 16KB - same HTTPS-stack-overflow reasoning as video_record_task. */
+    if (xTaskCreate(audio_record_task, "audio_record", 16384, task_args, 5, NULL) != pdPASS) {
         free(task_args);
         telegramp4_telegram_send_message(chat_id, "\xE2\x9D\x8C Failed to start recording task.");
     }

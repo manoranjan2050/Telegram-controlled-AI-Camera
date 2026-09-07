@@ -54,7 +54,11 @@ esp_err_t telegramp4_motion_init(telegramp4_motion_cb_t cb)
         return err;
     }
 
-    xTaskCreate(motion_task, "motion_task", 2048, NULL, 6, &s_task_handle);
+    /* 16KB: the registered callback does camera capture + AI + HTTPS
+     * broadcast to Telegram (see app_main.cpp on_motion_detected()), which
+     * needs real headroom - see the stack-overflow note on telegram_poll_task
+     * in telegramp4_telegram.c for why 2-8KB isn't enough for HTTPS calls. */
+    xTaskCreate(motion_task, "motion_task", 16384, NULL, 6, &s_task_handle);
 
     err = gpio_install_isr_service(0);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) { /* INVALID_STATE = already installed by another module */

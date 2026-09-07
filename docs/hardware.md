@@ -19,6 +19,20 @@ Product page: https://www.dfrobot.com/product-2915.html
 > table must be filled in from the actual product page/wiki/schematic
 > (https://www.dfrobot.com/product-2915.html) and confirmed on real hardware
 > before trusting any of it.
+>
+> **Update 2026-09-07 — first real hardware test.** WiFi + Telegram bot
+> (`/start`, menu buttons, chat-ID whitelist) confirmed working end-to-end on
+> an actual FireBeetle 2 ESP32-P4. Found and fixed on hardware: (1) the
+> MicroSD SDMMC host must use `SDMMC_HOST_SLOT_0` — slot 1 is occupied by the
+> ESP32-C6 WiFi link over SDIO and collided, crashing the WiFi transport; (2)
+> several FreeRTOS tasks that make HTTPS calls needed 16KB stacks, not
+> 2-8KB — undersized stacks caused a real stack-overflow panic; (3)
+> `esp_http_client`'s default internal buffer (512B) is too small for our
+> longer URL-encoded requests (inline keyboards, long status text) and needed
+> raising to 4096. SD card mounting still fails (`0x107`/timeout) even on
+> slot 0 — the exact GPIO pins this board wires the MicroSD to are still
+> unconfirmed (SDMMC_SLOT_CONFIG_DEFAULT()'s pins are a chip-level default,
+> not read off this board's schematic).
 
 | Item | Value | Verified? |
 |---|---|---|

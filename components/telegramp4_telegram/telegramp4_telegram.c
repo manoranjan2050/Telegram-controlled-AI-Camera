@@ -79,6 +79,16 @@ static char *http_get_ex(const char *url, int timeout_ms, size_t max_bytes, size
         .user_data = &resp,
         .crt_bundle_attach = esp_crt_bundle_attach,
         .timeout_ms = timeout_ms,
+        /*
+         * Real hardware finding (2026-09-07): esp_http_client's default
+         * internal buffer (512 bytes) is too small once a URL-encoded query
+         * string gets long (e.g. the inline-keyboard JSON for /start's menu,
+         * or a long /status reply) - the request failed outright with
+         * "HTTP_CLIENT: Out of buffer". Sized for our longest GET URLs
+         * (url[] buffers in this file cap at 3072).
+         */
+        .buffer_size = 4096,
+        .buffer_size_tx = 4096,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -314,7 +324,14 @@ esp_err_t telegramp4_telegram_download_file(const char *file_id, size_t max_byte
 
 /* --- Command registry (Phase 3) --- */
 
-#define MAX_COMMANDS 32
+/*
+ * Real hardware finding (2026-09-07): with all 22 phases wired up, the app
+ * registers ~30 commands total (built-ins here + everything app_main.cpp
+ * adds). 32 was too tight - /menu and /settings failed to register on actual
+ * hardware ("Command registry full"), silently breaking the button menu.
+ * Sized with headroom above the current count.
+ */
+#define MAX_COMMANDS 64
 
 typedef struct {
     char name[32];
@@ -733,7 +750,15 @@ esp_err_t telegramp4_telegram_start(void)
         cJSON_Delete(root);
     }
 
-    BaseType_t ok = xTaskCreate(telegram_poll_task, "telegram_poll", 8192, NULL, 5, NULL);
+    /*
+     * Real hardware finding (2026-09-07): 8192 bytes caused a stack
+     * protection fault (Guru Meditation Error) on real hardware the first
+     * time a command handler actually ran an HTTPS round trip from within
+     * this task (mbedTLS/esp_http_client use a non-trivial amount of stack,
+     * on top of this file's own multi-KB local URL/encoding buffers).
+     * Bumped with real headroom rather than tuning to the exact edge.
+     */
+    BaseType_t ok = xTaskCreate(telegram_poll_task, "telegram_poll", 16384, NULL, 5, NULL);
     if (ok != pdPASS) {
         ESP_LOGE(TAG, "Failed to create telegram_poll_task");
         return ESP_ERR_NO_MEM;
