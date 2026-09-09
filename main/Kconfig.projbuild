@@ -143,6 +143,23 @@ menu "TelegramP4 Configuration"
             int "Maximum recording length (seconds)"
             default 60
 
+        comment "Pins below confirmed from DFRobot DFR1172 schematic (2026-09-09): MSM261DGT003 PDM mic's I2S_CLK/I2S_DATA nets traced to these pins."
+
+        config TELEGRAMP4_AUDIO_PDM_CLK_PIN
+            int "PDM microphone CLK pin"
+            default 12
+
+        config TELEGRAMP4_AUDIO_PDM_DATA_PIN
+            int "PDM microphone DATA pin"
+            default 9
+
+        config TELEGRAMP4_AUDIO_SAMPLE_RATE
+            int "Sample rate (Hz)"
+            default 16000
+            help
+                16kHz mono is plenty for voice notes and keeps the WAV file
+                small over a slow bot upload.
+
     endmenu
 
     menu "Speech-to-Text"

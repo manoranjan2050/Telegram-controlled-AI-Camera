@@ -48,11 +48,16 @@ Track progress here so a new session knows where to resume.
   the note in docs/hardware.md; next things to try: longer power-on delay,
   opposite GPIO45 polarity, or GPIO45 may be internally reserved by the
   in-package PSRAM on the NRW32 variant and not usable as a plain GPIO
-- ⚠️ Video recording (`telegramp4_video`) and audio recording
-  (`telegramp4_audio`) are still unimplemented stubs — next things to build
-  now that the camera/PSRAM path is confirmed working. Microphone pins
-  identified from the schematic: PDM_DATA=GPIO9, PDM_CLK=GPIO12 (not yet
-  added to docs/hardware.md or used in code).
+- ✅ **Real audio recording works.** Mic pins confirmed from the schematic
+  (PDM_DATA=GPIO9, PDM_CLK=GPIO12). `telegramp4_audio_record()` uses
+  ESP-IDF's I2S PDM RX driver, returns a WAV file in a heap buffer (same
+  pattern as camera frames, since SD isn't reliable enough to depend on).
+  Confirmed live: `Recorded 320000 bytes of PCM (10s @ 16000Hz)`.
+- ⚠️ Video recording (`telegramp4_video`) is still an unimplemented stub —
+  the next thing to build. ESP32-P4 has a hardware H.264 encoder block and
+  `espressif/esp_h264` is already a pulled-in managed component; the camera
+  V4L2 pipeline in `telegramp4_camera` would need to be reworked from
+  single-shot JPEG capture to a continuous stream feeding the encoder.
 
 - [x] Phase 0 — Project Bootstrap (code written; build verification pending ESP-IDF install)
 - [x] Phase 1 — Wi-Fi (code written; build verification pending ESP-IDF install)

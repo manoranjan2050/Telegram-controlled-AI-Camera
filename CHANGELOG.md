@@ -38,8 +38,17 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   `sdkconfig.defaults`. Confirmed live: `/photo` now captures real JPEG
   frames (15155 and 38432 bytes observed) and uploads them to Telegram.
 - Microphone PDM pins traced from the schematic: PDM_DATA=GPIO9,
-  PDM_CLK=GPIO12 (`docs/hardware.md`). Not yet wired into
-  `telegramp4_audio`, which remains a stub.
+  PDM_CLK=GPIO12 (`docs/hardware.md`).
+
+### Added
+- **Real audio recording**, using the mic pins above via ESP-IDF's I2S PDM
+  RX driver (`driver/i2s_pdm.h`, 16-bit mono, wrapped in a hand-built WAV
+  header). `telegramp4_audio_result_t` now carries the WAV bytes directly in
+  a heap buffer (mirroring `telegramp4_camera_frame_t`) instead of requiring
+  the SD card to be mounted, since SD doesn't reliably work on this board
+  yet - a copy is still saved to `/sdcard/audio/` best-effort when it is.
+  Confirmed live: `Recorded 320000 bytes of PCM (10s @ 16000Hz)`,
+  `telegramp4_audio_record()` returning `ESP_OK`.
 
 ## [Unreleased] - 2026-09-07 (real hardware, round 2)
 

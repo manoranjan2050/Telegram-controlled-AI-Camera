@@ -1063,12 +1063,25 @@ static void audio_record_task(void *arg)
         telegramp4_telegram_send_message(a->chat_id,
             "\xE2\x9D\x8C Microphone unavailable.\nCheck hardware.");
     } else {
-        uint8_t *data = NULL;
-        size_t len = 0;
-        if (read_file_into_buffer(result.path, &data, &len)) {
-            telegramp4_telegram_send_document(a->chat_id, data, len, "audio.wav");
-            free(data);
+        /* Save to SD (best-effort, same pattern as photo capture) before/independent of upload. */
+        telegramp4_storage_status_t storage = telegramp4_storage_get_status();
+        if (storage.mounted) {
+            char filename[32];
+            snprintf(filename, sizeof(filename), "audio_%lld.wav", (long long) esp_timer_get_time() / 1000000);
+            char path[160];
+            if (telegramp4_storage_sanitize_path("audio", filename, path, sizeof(path))) {
+                FILE *f = fopen(path, "wb");
+                if (f) {
+                    fwrite(result.data, 1, result.len, f);
+                    fclose(f);
+                } else {
+                    ESP_LOGW(TAG, "Failed to save audio to %s", path);
+                }
+            }
         }
+
+        telegramp4_telegram_send_document(a->chat_id, result.data, result.len, "audio.wav");
+        telegramp4_audio_release(&result);
     }
 
     free(a);
