@@ -33,8 +33,8 @@ CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 # (roughly 1.28MB for two 800x800 RAW8 buffers, more than the ~768KB
 # internal L2MEM has room for) so this must be resolved before /photo can
 # actually produce an image - see CLAUDE.md and docs/hardware.md.
-# CONFIG_SPIRAM=y
-# CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
 
 # Phase 1: ESP32-P4 has no native WiFi radio - connectivity is provided by the
 # onboard ESP32-C6 co-processor, reached through the esp_wifi_remote managed
@@ -57,3 +57,26 @@ CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y
 # module is a Raspberry Pi Camera Module v1.3). Officially supported by
 # Espressif's esp_cam_sensor component over MIPI-CSI on ESP32-P4.
 CONFIG_CAMERA_OV5647=y
+
+# Confirmed 2026-09-09 on real hardware: esp_video only registers the JPEG
+# M2M encoder device (/dev/video10, ESP_VIDEO_JPEG_DEVICE_NAME) when this
+# option is on - it defaults to "n" in the espressif/esp_video managed
+# component's own Kconfig. Without it, telegramp4_camera's
+# open(ESP_VIDEO_JPEG_DEVICE_NAME) always fails even though the MIPI-CSI
+# capture device and the sensor itself work fine.
+CONFIG_ESP_VIDEO_ENABLE_HW_JPEG_ENC_VIDEO_DEVICE=y
+
+# Confirmed 2026-09-09 on real hardware, as the second half of the
+# CONFIG_SPIRAM boot-loop fix (see main/freertos_static_mem.c for the first
+# half, IDLE task memory). ESP-IDF's main_task is created dynamically
+# (xTaskCreatePinnedToCore, components/freertos/app_startup.c) with the
+# default 3584-byte stack, allocated from the heap with plain
+# MALLOC_CAP_INTERNAL. With CONFIG_SPIRAM=y the internal-SRAM heap can be
+# fragmented enough at boot for this to land in the ESP32-P4's small 8KB TCM
+# region instead of ordinary SRAM, which later fails
+# esp_task_stack_is_sane_cache_disabled() (cache_utils.c) the first time a
+# flash operation needs to run from main_task's context - asserting and
+# rebooting. TCM is exactly 8KB (0x2000 bytes), so any single allocation
+# above that size structurally cannot be satisfied by it: raising the main
+# task's stack past that threshold guarantees it always comes from L2MEM.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384

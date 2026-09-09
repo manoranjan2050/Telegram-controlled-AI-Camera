@@ -3,6 +3,44 @@
 All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - 2026-09-09 (real hardware, round 3: PSRAM fixed, camera works)
+
+### Fixed
+- **PSRAM boot-loop, root-caused and fixed.** `CONFIG_SPIRAM=y` was rebooting
+  the device before `app_main()` ever ran
+  (`assert failed: xTaskCreateStaticPinnedToCore ... xPortCheckValidTCBMem`/
+  `xPortcheckValidStackMem`). Root cause, found via a temporary diagnostic
+  print inside FreeRTOS's `xTaskCreateStaticPinnedToCore` (reverted after
+  use): with PSRAM enabled, the ESP32-P4's internal-SRAM (L2MEM) heap pool
+  is fragmented/short enough at boot that plain `MALLOC_CAP_INTERNAL`
+  requests (used by ESP-IDF's default idle/timer-task memory providers and
+  by `main_task`'s dynamically-allocated stack) sometimes get satisfied out
+  of the chip's tiny 8KB TCM region instead of ordinary SRAM - FreeRTOS then
+  rejects a TCM-backed static task buffer as invalid. Fixed entirely from
+  the project, no ESP-IDF/SDK files modified: `main/freertos_static_mem.c`
+  overrides `vApplicationGetIdleTaskMemory`/`vApplicationGetPassiveIdleTaskMemory`/
+  `vApplicationGetTimerTaskMemory` via `-Wl,--wrap=` linker flags (added in
+  `main/CMakeLists.txt`) so idle/timer task memory always comes from static
+  `.bss`, never the heap; `CONFIG_ESP_MAIN_TASK_STACK_SIZE` bumped from 3584
+  to 16384 bytes (above TCM's 8KB size) so `main_task`'s stack structurally
+  cannot land there either. (An earlier attempt to simply redefine these
+  functions without `--wrap` silently failed to link in - both ESP-IDF's and
+  the app's copies live in separate static-library archives, and the linker
+  resolves the *first* archive member that satisfies the symbol, which is
+  always ESP-IDF's own `port_common.c.o` scanned from within `freertos.a`
+  itself before `main.a` is even reached.)
+- **Real camera photo capture confirmed working end-to-end.** With PSRAM
+  fixed, `/dev/video10` (the JPEG M2M encoder device) still failed to open.
+  Root cause: `CONFIG_ESP_VIDEO_ENABLE_HW_JPEG_ENC_VIDEO_DEVICE` defaults to
+  `n` in the `espressif/esp_video` managed component's own Kconfig - without
+  it, the JPEG device is never registered by `esp_video_init()` at all, no
+  matter what PSRAM/memory state the board is in. Enabled in
+  `sdkconfig.defaults`. Confirmed live: `/photo` now captures real JPEG
+  frames (15155 and 38432 bytes observed) and uploads them to Telegram.
+- Microphone PDM pins traced from the schematic: PDM_DATA=GPIO9,
+  PDM_CLK=GPIO12 (`docs/hardware.md`). Not yet wired into
+  `telegramp4_audio`, which remains a stub.
+
 ## [Unreleased] - 2026-09-07 (real hardware, round 2)
 
 WiFi + Telegram bot + button menu confirmed stable on real hardware

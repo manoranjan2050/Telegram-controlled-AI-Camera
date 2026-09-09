@@ -42,7 +42,26 @@ schematic links.
   DQBUF→QBUF→DQBUF→QBUF cycle and copies the resulting JPEG bytes to a heap
   buffer before returning any V4L2 buffer to its queue
 
-## ⚠️ Still open: PSRAM + WiFi conflict
+## ✅ Resolved 2026-09-09: PSRAM boot-loop fixed, real capture confirmed live
+
+The PSRAM/boot-loop issue described below (kept for history) is fixed — see
+`main/freertos_static_mem.c` and the "Current status" section of
+[CLAUDE.md](../../CLAUDE.md) for the full root cause (TCM-backed FreeRTOS
+static task memory) and fix (linker `--wrap` overrides + a larger
+`main_task` stack, both project-local, no ESP-IDF/SDK files touched).
+
+With PSRAM stable, `/dev/video10` (the JPEG M2M encoder device) still failed
+to open at first. Root cause: `CONFIG_ESP_VIDEO_ENABLE_HW_JPEG_ENC_VIDEO_DEVICE`
+defaults to `n` in the `espressif/esp_video` managed component's own
+Kconfig — the JPEG device simply isn't registered without it, regardless of
+memory state. Enabling it in `sdkconfig.defaults` was the last piece.
+
+**Confirmed live**: `Camera initialized (800x800)`, and `/photo` produces
+real JPEG frames — 15155 and 38432 bytes observed in the same test session,
+both delivered to Telegram.
+
+<details>
+<summary>Original 2026-09-07 note (kept for history)</summary>
 
 `telegramp4_camera_capture()` needs PSRAM for its frame buffers (two 800x800
 RAW8 capture buffers alone are ~1.28MB, well over the ~768KB internal L2MEM
@@ -55,6 +74,8 @@ is disabled again in `sdkconfig.defaults` for now so WiFi/Telegram/SD stay on
 the last known-stable, tested configuration. Until this is resolved,
 `/photo_test` will fail at the buffer-allocation step even though the sensor
 bring-up code itself is real, not a stub.
+
+</details>
 
 ## Code
 
@@ -73,9 +94,8 @@ bring-up code itself is real, not a stub.
 idf.py build
 idf.py -p <PORT> flash monitor
 ```
-`/photo_test` in Telegram. Expected right now (PSRAM disabled): a capture
-failure logged with a clear error, not a crash. Once the PSRAM/ESP-Hosted
-conflict above is resolved, expect a real JPEG size logged and reported back.
+`/photo_test` or `/photo` in Telegram. Expect a real JPEG size logged
+(confirmed live) and, for `/photo`, an actual photo delivered to the chat.
 
 ## Next lesson
 

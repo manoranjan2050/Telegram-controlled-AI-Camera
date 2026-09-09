@@ -19,21 +19,40 @@ Product page: https://www.dfrobot.com/product-2915.html
 
 Track progress here so a new session knows where to resume.
 
-**Real hardware test log (2026-09-07, FireBeetle 2 ESP32-P4 DFR1172):**
+**Real hardware test log (2026-09-09, FireBeetle 2 ESP32-P4 DFR1172):**
 - ✅ WiFi connects reliably (`esp_wifi_remote` over SDIO to the C6)
 - ✅ Telegram bot connects and responds (`@ESP3P4AIbot`), button menu works
-- ✅ Camera sensor detected live: `ov5647: Detected Camera sensor PID=0x5647`
-  (SCCB pins from the schematic are correct) — but JPEG capture pipeline
-  fails to open its device (`/dev/video10`), because it needs PSRAM and
-  PSRAM is currently disabled (see the known issue below)
+- ✅ **PSRAM boot-loop FIXED.** Root cause: with `CONFIG_SPIRAM=y`, the
+  internal-SRAM (L2MEM) heap pool is fragmented/short enough by early boot
+  that ESP-IDF's default idle/timer-task memory providers and `main_task`'s
+  dynamic stack (all allocated via `pvPortMalloc`/`MALLOC_CAP_INTERNAL`)
+  sometimes get satisfied out of the ESP32-P4's tiny 8KB TCM region instead
+  of ordinary SRAM — FreeRTOS then rejects a TCM-backed static task
+  buffer as invalid and asserts/reboots. Fixed entirely from the project
+  (no ESP-IDF/SDK files modified) via `main/freertos_static_mem.c` +
+  `main/CMakeLists.txt`'s `-Wl,--wrap=` linker flags (idle/timer task memory
+  now comes from static `.bss`, never the heap) plus bumping
+  `CONFIG_ESP_MAIN_TASK_STACK_SIZE` to 16384 (above TCM's 8KB, so that
+  allocation structurally can't land there either). See the header comment
+  in `main/freertos_static_mem.c` for the full diagnostic story.
+- ✅ **Real camera photo capture WORKS.** Sensor detected
+  (`ov5647: Detected Camera sensor PID=0x5647`), JPEG M2M pipeline opens and
+  streams (`Camera initialized (800x800)`), and `/photo` produces real JPEG
+  frames (confirmed live: 15155 and 38432 byte captures) uploaded to
+  Telegram. The missing piece was `CONFIG_ESP_VIDEO_ENABLE_HW_JPEG_ENC_VIDEO_DEVICE`
+  (defaults to `n` in the `espressif/esp_video` managed component's own
+  Kconfig) — without it, `/dev/video10` (`ESP_VIDEO_JPEG_DEVICE_NAME`) is
+  never registered at all, regardless of PSRAM.
 - ❌ SD card still fails to mount (`ESP_ERR_TIMEOUT`/`0x107`) even after
   driving the power-gate GPIO45 low — see docs/lessons/07-microsd.md and
   the note in docs/hardware.md; next things to try: longer power-on delay,
   opposite GPIO45 polarity, or GPIO45 may be internally reserved by the
   in-package PSRAM on the NRW32 variant and not usable as a plain GPIO
-- ⚠️ **Known blocker**: `CONFIG_SPIRAM=y` boot-loops the device (ESP-Hosted
-  static task creation assert) — disabled for now, root cause not found.
-  This is the next thing to fix; it blocks real camera capture entirely.
+- ⚠️ Video recording (`telegramp4_video`) and audio recording
+  (`telegramp4_audio`) are still unimplemented stubs — next things to build
+  now that the camera/PSRAM path is confirmed working. Microphone pins
+  identified from the schematic: PDM_DATA=GPIO9, PDM_CLK=GPIO12 (not yet
+  added to docs/hardware.md or used in code).
 
 - [x] Phase 0 — Project Bootstrap (code written; build verification pending ESP-IDF install)
 - [x] Phase 1 — Wi-Fi (code written; build verification pending ESP-IDF install)
