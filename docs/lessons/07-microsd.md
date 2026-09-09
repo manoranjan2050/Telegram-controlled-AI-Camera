@@ -31,17 +31,29 @@ genuine polarity bug would behave differently one way vs. the other).
 **2026-09-10 follow-up**: also tried enabling `SDMMC_SLOT_FLAG_INTERNAL_PULLUP`
 on the CMD/D0-D3 lines (confirmed enabled in the boot log —
 `gpio: GPIO[43]|...|Pullup: 1` etc.) in case the bus was floating without
-pull-ups. **Identical failure, same point, same error code.** Four
-independent firmware variables now tried (pins, slot, power-gate polarity
-x2, pull-ups) with zero change in behavior — this is no longer explainable
-as a firmware bug. The failure is at the very first card-identification
-command (`send_op_cond`), before the bus even negotiates width/speed, which
-is consistent with no card actually being seated, a dead/incompatible card,
-or a broken physical connection on the socket — none of which firmware can
-tell apart from here. See [docs/hardware.md](../hardware.md) for what to
-check next (try a different known-good FAT32 card; if still failing, probe
-the socket's VDD pin with a multimeter while booting) — these all require
-physical access to the board.
+pull-ups. **Identical failure, same point, same error code.**
+
+**Then traced the actual SD sheet of the schematic (page 4 of 8) directly**,
+not just the pin table, to check *why* neither fix moved the needle - and
+found the answer in the circuit itself: `R35`-`R39` are real 51K pull-up
+resistors already wired from the 3.3V rail to CMD/D0/D1/D2/D3 in hardware,
+and the power-gate MOSFET (`Q1`) has its gate pulled down by `R4` by
+default, meaning the card is powered **even before firmware touches
+GPIO45**. Both leading firmware theories were never actually viable - the
+board was always correctly powered and correctly pulled-up, which is
+exactly why changing either in software produced zero difference. This
+isn't a guess anymore; it's read directly off the circuit.
+
+Four independent firmware variables now tried (pins, slot, power-gate
+polarity x2, pull-ups), two of them now proven redundant by the schematic
+itself, all producing the exact same `send_op_cond` timeout at the exact
+same point. A fully powered, fully pulled-up bus that still won't answer
+the very first card-identification command is not something firmware can
+fix - it points to no card actually being seated, a dead/incompatible card,
+or a physical defect on the socket. See [docs/hardware.md](../hardware.md)
+for what to check next (try a different known-good FAT32 card; if still
+failing, probe the socket's pins with a multimeter/oscilloscope while
+booting) — these all require physical access to the board.
 
 <details>
 <summary>Original 2026-09-06 note (kept for history)</summary>
