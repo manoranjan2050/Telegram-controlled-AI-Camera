@@ -26,12 +26,22 @@ the SDMMC bus.
 (GPIO45 driven LOW and HIGH) were tested live and produced byte-for-byte
 identical `0x107`/`ESP_ERR_TIMEOUT` failures at the same point every time —
 which means this pin is very likely *not* the actual blocking factor (a
-genuine polarity bug would behave differently one way vs. the other). The
-leading hypothesis is now something outside firmware's control: no card
-actually seated in the slot, an incompatible/bad card, or a card not
-formatted FAT32. See [docs/hardware.md](../hardware.md) for the full
-writeup and next steps (try a different known-good FAT32 card; if still
-failing, probe the socket's VDD pin with a multimeter while booting).
+genuine polarity bug would behave differently one way vs. the other).
+
+**2026-09-10 follow-up**: also tried enabling `SDMMC_SLOT_FLAG_INTERNAL_PULLUP`
+on the CMD/D0-D3 lines (confirmed enabled in the boot log —
+`gpio: GPIO[43]|...|Pullup: 1` etc.) in case the bus was floating without
+pull-ups. **Identical failure, same point, same error code.** Four
+independent firmware variables now tried (pins, slot, power-gate polarity
+x2, pull-ups) with zero change in behavior — this is no longer explainable
+as a firmware bug. The failure is at the very first card-identification
+command (`send_op_cond`), before the bus even negotiates width/speed, which
+is consistent with no card actually being seated, a dead/incompatible card,
+or a broken physical connection on the socket — none of which firmware can
+tell apart from here. See [docs/hardware.md](../hardware.md) for what to
+check next (try a different known-good FAT32 card; if still failing, probe
+the socket's VDD pin with a multimeter while booting) — these all require
+physical access to the board.
 
 <details>
 <summary>Original 2026-09-06 note (kept for history)</summary>

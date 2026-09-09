@@ -69,6 +69,17 @@ esp_err_t telegramp4_storage_init(void)
     host.slot = SDMMC_HOST_SLOT_0;
     sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
     slot_config.width = 4;
+    /*
+     * Untried until now (2026-09-10): the CMD/D0-D3 lines need pull-ups to
+     * idle high, or the card never reliably answers the very first
+     * identification commands - which matches our exact failure mode
+     * (sdmmc_init_ocr/send_op_cond timing out, 0x107). Whether DFRobot
+     * populated external pull-ups on this board is unconfirmed; enabling the
+     * driver's internal ones is free to try and is what ESP-IDF's own
+     * examples/storage/sd_card/sdmmc example does unconditionally for every
+     * target including ESP32-P4.
+     */
+    slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
 
     esp_err_t ret = esp_vfs_fat_sdmmc_mount(TELEGRAMP4_SD_MOUNT_POINT, &host, &slot_config,
                                              &mount_config, &s_card);
