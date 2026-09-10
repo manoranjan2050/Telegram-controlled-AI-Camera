@@ -1,0 +1,86 @@
+<svg width="900" height="480" viewBox="0 0 900 480" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="hb-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1526"/>
+      <stop offset="100%" stop-color="#182338"/>
+    </linearGradient>
+    <linearGradient id="pcb" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a3a1f"/>
+      <stop offset="100%" stop-color="#123018"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="480" fill="url(#hb-bg)" rx="14"/>
+  <text x="450" y="36" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#f2f6ff" text-anchor="middle">DFRobot FireBeetle 2 ESP32-P4 AI Vision Board</text>
+
+  <!-- PCB -->
+  <g transform="translate(300,70)">
+    <rect width="300" height="340" rx="14" fill="url(#pcb)" stroke="#2f7d4f" stroke-width="2"/>
+    <!-- main chip -->
+    <rect x="110" y="140" width="80" height="80" rx="6" fill="#101a10" stroke="#4fd672" stroke-width="1.5"/>
+    <text x="150" y="184" font-family="Consolas,monospace" font-size="9" fill="#4fd672" text-anchor="middle">ESP32-P4</text>
+    <!-- co-processor -->
+    <rect x="210" y="30" width="60" height="40" rx="5" fill="#101a10" stroke="#7ee0ff" stroke-width="1.5"/>
+    <text x="240" y="53" font-family="Consolas,monospace" font-size="7.5" fill="#7ee0ff" text-anchor="middle">ESP32-C6</text>
+    <!-- CSI connector -->
+    <rect x="20" y="20" width="50" height="16" rx="3" fill="#101a10" stroke="#f2c14e"/>
+    <!-- USB-C -->
+    <rect x="120" y="300" width="60" height="18" rx="4" fill="#0d1526" stroke="#9fb3d9"/>
+    <!-- microSD -->
+    <rect x="20" y="270" width="46" height="30" rx="3" fill="#0d1526" stroke="#ff8a65"/>
+    <!-- mic -->
+    <circle cx="250" cy="120" r="10" fill="#0d1526" stroke="#ba68c8" stroke-width="1.5"/>
+    <!-- boot/reset buttons -->
+    <circle cx="30" cy="150" r="8" fill="#0d1526" stroke="#9fb3d9" stroke-width="1.5"/>
+    <circle cx="30" cy="180" r="8" fill="#0d1526" stroke="#9fb3d9" stroke-width="1.5"/>
+    <!-- header pins -->
+    <g fill="#dfae4a">
+      <rect x="0" y="20" width="6" height="300"/>
+      <rect x="294" y="20" width="6" height="300"/>
+    </g>
+  </g>
+
+  <!-- callouts -->
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12.5">
+    <!-- CSI camera -->
+    <line x1="320" y1="98" x2="140" y2="98" stroke="#f2c14e" stroke-width="1.5"/>
+    <circle cx="140" cy="98" r="3" fill="#f2c14e"/>
+    <text x="40" y="94" fill="#f2c14e">📷 MIPI-CSI</text>
+    <text x="40" y="110" fill="#8fa0c2" font-size="10.5">OV5647 camera · GPIO7/8 (SCCB)</text>
+
+    <!-- ESP32-P4 -->
+    <line x1="410" y1="220" x2="200" y2="240" stroke="#4fd672" stroke-width="1.5"/>
+    <circle cx="200" cy="240" r="3" fill="#4fd672"/>
+    <text x="40" y="238" fill="#4fd672">🧠 ESP32-P4</text>
+    <text x="40" y="254" fill="#8fa0c2" font-size="10.5">RISC-V, 32MB PSRAM, runs this firmware</text>
+
+    <!-- C6 coprocessor -->
+    <line x1="610" y1="120" x2="770" y2="98" stroke="#7ee0ff" stroke-width="1.5"/>
+    <circle cx="770" cy="98" r="3" fill="#7ee0ff"/>
+    <text x="780" y="94" fill="#7ee0ff" text-anchor="start">📶 ESP32-C6</text>
+    <text x="780" y="110" fill="#8fa0c2" font-size="10.5" text-anchor="start">Wi-Fi 6 + BLE, via SDIO</text>
+
+    <!-- mic -->
+    <line x1="560" y1="190" x2="770" y2="200" stroke="#ba68c8" stroke-width="1.5"/>
+    <circle cx="770" cy="200" r="3" fill="#ba68c8"/>
+    <text x="780" y="196" fill="#ba68c8" text-anchor="start">🎙 PDM Mic</text>
+    <text x="780" y="212" fill="#8fa0c2" font-size="10.5" text-anchor="start">MSM261DGT003 · GPIO9/12</text>
+
+    <!-- microSD -->
+    <line x1="320" y1="355" x2="140" y2="380" stroke="#ff8a65" stroke-width="1.5"/>
+    <circle cx="140" cy="380" r="3" fill="#ff8a65"/>
+    <text x="40" y="384" fill="#ff8a65">💾 MicroSD</text>
+    <text x="40" y="400" fill="#8fa0c2" font-size="10.5">4-bit SDMMC, slot 0 · GPIO39-45</text>
+
+    <!-- USB -->
+    <line x1="450" y1="390" x2="770" y2="380" stroke="#9fb3d9" stroke-width="1.5"/>
+    <circle cx="770" cy="380" r="3" fill="#9fb3d9"/>
+    <text x="780" y="384" fill="#9fb3d9" text-anchor="start">🔌 USB-C</text>
+    <text x="780" y="400" fill="#8fa0c2" font-size="10.5" text-anchor="start">Flash + serial monitor</text>
+
+    <!-- BOOT -->
+    <line x1="330" y1="220" x2="770" y2="290" stroke="#e0e0e0" stroke-width="1.5"/>
+    <circle cx="770" cy="290" r="3" fill="#e0e0e0"/>
+    <text x="780" y="286" fill="#e0e0e0" text-anchor="start">⏺ BOOT (GPIO35)</text>
+    <text x="780" y="302" fill="#8fa0c2" font-size="10.5" text-anchor="start">hold at power-on to re-open setup portal</text>
+  </g>
+</svg>

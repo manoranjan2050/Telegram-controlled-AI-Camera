@@ -1,0 +1,91 @@
+<svg width="1200" height="260" viewBox="0 0 1200 260" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f1729"/>
+      <stop offset="55%" stop-color="#141e33"/>
+      <stop offset="100%" stop-color="#1c2942"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#29b6f6"/>
+      <stop offset="100%" stop-color="#7c4dff"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#29b6f6" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#29b6f6" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="260" fill="url(#bg)"/>
+  <circle cx="1010" cy="90" r="140" fill="url(#glow)"/>
+
+  <!-- scattered circuit dots -->
+  <g fill="#2c3b5c">
+    <circle cx="60" cy="40" r="2.5"/><circle cx="120" cy="70" r="2"/>
+    <circle cx="40" cy="210" r="2.5"/><circle cx="150" cy="230" r="2"/>
+    <circle cx="1120" cy="220" r="2.5"/><circle cx="1080" cy="40" r="2"/>
+  </g>
+
+  <!-- Telegram paper-plane -->
+  <g transform="translate(870,60)">
+    <circle cx="45" cy="45" r="45" fill="#29b6f6" opacity="0.15"/>
+    <circle cx="45" cy="45" r="45" fill="none" stroke="#29b6f6" stroke-width="1.5" opacity="0.5">
+      <animate attributeName="r" values="45;50;45" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.5;0.15;0.5" dur="3s" repeatCount="indefinite"/>
+    </circle>
+    <path d="M22 46 L70 24 L58 70 L46 54 L36 60 Z" fill="#29b6f6" stroke="#0f1729" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M46 54 L70 24 L38 50 Z" fill="#7ee0ff" opacity="0.6"/>
+  </g>
+
+  <!-- animated dashed link -->
+  <line x1="618" y1="105" x2="855" y2="90" stroke="url(#accent)" stroke-width="2.5" stroke-dasharray="6 8" opacity="0.8">
+    <animate attributeName="stroke-dashoffset" values="0;-28" dur="1.2s" repeatCount="indefinite"/>
+  </line>
+
+  <!-- ESP32-P4 camera board glyph -->
+  <g transform="translate(1000,150)">
+    <rect x="0" y="0" width="130" height="80" rx="10" fill="#1a2540" stroke="#3a4f7a" stroke-width="2"/>
+    <rect x="14" y="14" width="46" height="46" rx="6" fill="#0f1729" stroke="#29b6f6" stroke-width="2"/>
+    <circle cx="37" cy="37" r="14" fill="#101a30" stroke="#7ee0ff" stroke-width="2"/>
+    <circle cx="37" cy="37" r="6" fill="#29b6f6">
+      <animate attributeName="opacity" values="1;0.3;1" dur="2.4s" repeatCount="indefinite"/>
+    </circle>
+    <g fill="#3a4f7a">
+      <circle cx="76" cy="18" r="2.4"/><circle cx="90" cy="18" r="2.4"/><circle cx="104" cy="18" r="2.4"/>
+      <circle cx="76" cy="30" r="2.4"/><circle cx="90" cy="30" r="2.4"/><circle cx="104" cy="30" r="2.4"/>
+      <circle cx="76" cy="42" r="2.4"/><circle cx="90" cy="42" r="2.4"/><circle cx="104" cy="42" r="2.4"/>
+    </g>
+    <rect x="70" y="58" width="50" height="12" rx="2" fill="#0f1729" stroke="#3a4f7a"/>
+    <text x="95" y="67" font-family="Consolas,monospace" font-size="7" fill="#7ee0ff" text-anchor="middle">ESP32-P4</text>
+  </g>
+
+  <!-- Title block -->
+  <text x="60" y="115" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="58" font-weight="700" fill="#f2f6ff">Telegram<tspan fill="#29b6f6">P4</tspan></text>
+  <text x="62" y="150" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="19" fill="#9fb3d9">A Telegram-controlled AI camera &amp; IoT platform for the ESP32-P4</text>
+
+  <!-- feature chips -->
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13.5" font-weight="600">
+    <g transform="translate(62,178)">
+      <rect width="96" height="30" rx="15" fill="#132038" stroke="#2c4066"/>
+      <text x="48" y="20" fill="#7ee0ff" text-anchor="middle">📷 Camera</text>
+    </g>
+    <g transform="translate(170,178)">
+      <rect width="88" height="30" rx="15" fill="#132038" stroke="#2c4066"/>
+      <text x="44" y="20" fill="#7ee0ff" text-anchor="middle">🎙 Audio</text>
+    </g>
+    <g transform="translate(270,178)">
+      <rect width="96" height="30" rx="15" fill="#132038" stroke="#2c4066"/>
+      <text x="48" y="20" fill="#7ee0ff" text-anchor="middle">💾 MicroSD</text>
+    </g>
+    <g transform="translate(378,178)">
+      <rect width="118" height="30" rx="15" fill="#132038" stroke="#2c4066"/>
+      <text x="59" y="20" fill="#7ee0ff" text-anchor="middle">🌐 Web Setup</text>
+    </g>
+    <g transform="translate(508,178)">
+      <rect width="98" height="30" rx="15" fill="#132038" stroke="#2c4066"/>
+      <text x="49" y="20" fill="#7ee0ff" text-anchor="middle">🤖 AI + IoT</text>
+    </g>
+  </g>
+</svg>

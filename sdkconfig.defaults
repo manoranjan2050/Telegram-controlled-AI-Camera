@@ -66,6 +66,12 @@ CONFIG_CAMERA_OV5647=y
 # capture device and the sensor itself work fine.
 CONFIG_ESP_VIDEO_ENABLE_HW_JPEG_ENC_VIDEO_DEVICE=y
 
+# Same pattern, for video (Phase 9): esp_video only registers the H.264 M2M
+# encoder device (/dev/video11, ESP_VIDEO_H264_DEVICE_NAME) when this option
+# is on - it also defaults to "n". Without it, telegramp4_video's
+# open(ESP_VIDEO_H264_DEVICE_NAME) always fails.
+CONFIG_ESP_VIDEO_ENABLE_HW_H264_VIDEO_DEVICE=y
+
 # Confirmed 2026-09-10 on real hardware: CONFIG_VFS_MAX_COUNT (default 8) is a
 # fixed-size table of *registered VFS backends* (not open file descriptors) -
 # console/stdio + eventfd take a few slots on their own, esp_video registers
@@ -73,8 +79,10 @@ CONFIG_ESP_VIDEO_ENABLE_HW_JPEG_ENC_VIDEO_DEVICE=y
 # card's FATFS mount takes one more. Once the camera+SD init-order fix (see
 # main/app_main.cpp) let both actually succeed at boot for the first time,
 # the table filled up before lwip's own socket VFS could register when WiFi
-# started, aborting with ESP_ERR_NO_MEM. Raised with headroom to spare.
-CONFIG_VFS_MAX_COUNT=16
+# started, aborting with ESP_ERR_NO_MEM. Raised with headroom to spare -
+# bumped again to the Kconfig maximum (20) once video mode (Phase 9) added
+# a third /dev/videoN device node (/dev/video11, H.264) to the same table.
+CONFIG_VFS_MAX_COUNT=20
 
 # Confirmed 2026-09-09 on real hardware, as the second half of the
 # CONFIG_SPIRAM boot-loop fix (see main/freertos_static_mem.c for the first

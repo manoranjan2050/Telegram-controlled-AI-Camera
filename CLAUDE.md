@@ -20,6 +20,17 @@ Product page: https://www.dfrobot.com/product-2915.html
 Track progress here so a new session knows where to resume.
 
 **Real hardware test log (2026-09-10, FireBeetle 2 ESP32-P4 DFR1172):**
+- ✅ **Real H.264 video recording works.** `espressif/esp_video` exposes
+  the P4's hardware H.264 encoder as a V4L2 M2M device (`/dev/video11`,
+  same pattern as the JPEG path) - needed `CONFIG_ESP_VIDEO_ENABLE_HW_H264_VIDEO_DEVICE=y`
+  (defaults off) and configuring the CSI capture device for packed YUV420
+  output (the exact format the encoder needs, confirmed by reading
+  `esp_video_h264_device.c`'s source - no software pixel conversion
+  needed). Photo and video modes are mutually exclusive (one capture
+  engine) - `telegramp4_camera_start/stop_video_mode()` handle the
+  teardown/restore automatically. Confirmed live: 37 frames, 36816 bytes
+  of H.264, 5s recording. Delivered as `video.h264` (raw Annex-B stream,
+  not MP4 - VLC/ffplay play it directly). See docs/lessons/08-video.md.
 - ✅ **Web setup portal added.** First-time users flash once with no
   credentials baked in; the device starts a SoftAP (`TelegramP4-Setup`) +
   web page at `http://192.168.4.1/` for entering WiFi + Telegram bot
@@ -68,11 +79,11 @@ Track progress here so a new session knows where to resume.
   ESP-IDF's I2S PDM RX driver, returns a WAV file in a heap buffer (same
   pattern as camera frames, since SD isn't reliable enough to depend on).
   Confirmed live: `Recorded 320000 bytes of PCM (10s @ 16000Hz)`.
-- ⚠️ Video recording (`telegramp4_video`) is still an unimplemented stub —
-  the next thing to build. ESP32-P4 has a hardware H.264 encoder block and
-  `espressif/esp_h264` is already a pulled-in managed component; the camera
-  V4L2 pipeline in `telegramp4_camera` would need to be reworked from
-  single-shot JPEG capture to a continuous stream feeding the encoder.
+- All core features (WiFi, Telegram, camera, video, audio, SD, web setup)
+  are now confirmed working on real hardware. Remaining opt-in features
+  (AI detection, motion alerts, voice commands, display) are implemented
+  and build-clean but need per-user hardware (API key, PIR sensor, display
+  panel) to verify - see the feature table in README.md.
 
 - [x] Phase 0 — Project Bootstrap (code written; build verification pending ESP-IDF install)
 - [x] Phase 1 — Wi-Fi (code written; build verification pending ESP-IDF install)

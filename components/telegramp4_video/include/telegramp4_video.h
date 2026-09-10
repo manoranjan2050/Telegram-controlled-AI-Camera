@@ -1,17 +1,24 @@
 /**
- * telegramp4_video — video recording abstraction (Phase 9).
+ * telegramp4_video — video recording, using the ESP32-P4's hardware H.264
+ * encoder (Phase 9).
  *
- * ⚠️ Hardware verification status: same caveat as telegramp4_camera. ESP32-P4
- * does have a hardware H.264 encoder block in silicon, but whether it's usable
- * here depends on the same unverified camera/sensor driver stack (Phase 5) and
- * on which Espressif video-encode component/example actually supports it on
- * this chip. Do not assume H.264 (or any format) works until it has been
- * tested end-to-end on real hardware - see spec rule "do not assume hardware
- * video encoding support without verification."
+ * ✅ Confirmed 2026-09-10: `espressif/esp_video` exposes the P4's hardware
+ * H.264 encoder as a V4L2 M2M device (`/dev/video11`, same driver family as
+ * the JPEG path telegramp4_camera already uses for photos), and the ISP's
+ * own CSI capture format table lists packed YUV420 as a real supported
+ * output color format - exactly what that H.264 device expects as input,
+ * confirmed by reading its source rather than assumed. See
+ * telegramp4_camera.h's video-mode functions and docs/lessons/09-video.md
+ * for the full story, including why photo and video capture can't run at
+ * the same time (one MIPI-CSI capture engine, one active pixel format).
  *
- * telegramp4_video_record() is therefore an honest stub returning
- * ESP_ERR_NOT_SUPPORTED until someone verifies the encoder path and fills it
- * in, exactly like telegramp4_camera.
+ * Output is a raw H.264 Annex-B elementary stream (start-coded NAL units,
+ * SPS/PPS auto-prepended on the first frame) - not wrapped in an MP4
+ * container. Delivered to Telegram as a document (`video.h264`), which
+ * plays directly in VLC/ffplay; proper MP4 muxing is a possible follow-up.
+ * Returned in a heap buffer (mirroring telegramp4_camera_frame_t /
+ * telegramp4_audio_result_t) rather than requiring the SD card, since SD
+ * isn't reliable enough on this board to depend on - see docs/hardware.md.
  */
 #pragma once
 
@@ -24,19 +31,21 @@ extern "C" {
 #endif
 
 typedef struct {
-    char     path[160];  /* where the recording was saved, on success */
+    uint8_t *data; /* H.264 Annex-B bytes, heap-allocated - caller frees via telegramp4_video_release() */
+    size_t   len;
     uint32_t duration_s;
-    size_t   size_bytes;
 } telegramp4_video_result_t;
 
 /**
  * Records for `duration_s` seconds (clamped by the caller to the configured
- * min/max — see Kconfig) and saves to /sdcard/videos/. Blocks for the
- * duration of the recording; call from a dedicated task, never from the
- * Telegram poll task, so command handling isn't blocked (see
+ * min/max - see Kconfig) and returns a raw H.264 elementary stream. Blocks
+ * for the duration of the recording; call from a dedicated task, never from
+ * the Telegram poll task, so command handling isn't blocked (see
  * docs/architecture.md task model).
  */
 esp_err_t telegramp4_video_record(uint32_t duration_s, telegramp4_video_result_t *out_result);
+
+void telegramp4_video_release(telegramp4_video_result_t *result);
 
 #ifdef __cplusplus
 }

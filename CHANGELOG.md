@@ -3,6 +3,33 @@
 All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - 2026-09-10 (round 6: real H.264 video recording)
+
+### Added
+- **Real video recording**, using the ESP32-P4's hardware H.264 encoder
+  via `espressif/esp_video`'s M2M device (`/dev/video11`, same pattern as
+  the JPEG path) - needed `CONFIG_ESP_VIDEO_ENABLE_HW_H264_VIDEO_DEVICE=y`
+  (defaults off in the managed component's own Kconfig). The encoder
+  expects input already in a packed YUV420 layout; rather than write a
+  software color-space converter, configured the CSI capture device to
+  have the ISP hardware output that format directly
+  (`V4L2_PIX_FMT_YUV420`, confirmed as a real ISP output option in
+  `esp_video_csi_format.c`, and confirmed as the exact format
+  `esp_video_h264_device.c` expects with no conversion of its own).
+  `telegramp4_camera_start_video_mode()`/`stop_video_mode()` handle the
+  fact that photo (RGB565/UYVY for JPEG) and video (YUV420 for H.264)
+  can't run at the same time on the one MIPI-CSI capture engine - stopping
+  video mode automatically restores the photo pipeline. Output is a raw
+  H.264 Annex-B elementary stream (no MP4 container), delivered to
+  Telegram as `video.h264`. Confirmed live via a direct diagnostic call
+  (bypassing a long accumulated Telegram command backlog from earlier
+  testing): 37 frames, 36816 bytes of H.264, 5s recording, followed by the
+  photo pipeline correctly re-initializing on its own.
+- Raised `CONFIG_VFS_MAX_COUNT` to 20 (the Kconfig maximum) - a third
+  `/dev/videoN` device node needed more headroom in the shared VFS table
+  that first filled up when camera+SD+WiFi all started succeeding together
+  (see the SD card fix below).
+
 ## [Unreleased] - 2026-09-10 (round 5: web setup portal for first-time provisioning)
 
 ### Added

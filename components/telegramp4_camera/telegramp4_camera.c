@@ -26,6 +26,16 @@ static uint8_t *s_m2m_cap_buffer;
 static uint32_t s_width, s_height;
 static esp_cam_sensor_xclk_handle_t s_xclk_handle;
 
+/* Video mode (Phase 9) - a second, mutually-exclusive pipeline: CSI capture
+ * configured for raw YUV420 output instead of the photo path's
+ * RGB565/UYVY/RGB24/GREY, feeding the H.264 hardware encoder M2M device
+ * (/dev/video11) instead of the JPEG one. See telegramp4_camera.h. */
+static bool     s_video_mode = false;
+static int      s_vid_cap_fd = -1;
+static int      s_vid_enc_fd = -1;
+static uint8_t *s_vid_cap_buffer[CAP_BUFFER_COUNT];
+static uint8_t *s_vid_enc_buffer;
+
 static esp_err_t init_video_system(void)
 {
     esp_video_init_csi_config_t csi_config = {
@@ -342,4 +352,246 @@ telegramp4_camera_status_t telegramp4_camera_get_status(void)
         .frame_height = (int) s_height,
     };
     return status;
+}
+
+/* --- Video mode (Phase 9) --- */
+
+esp_err_t telegramp4_camera_start_video_mode(uint32_t bitrate_bps)
+{
+    if (s_video_mode) {
+        return ESP_OK;
+    }
+    if (s_initialized) {
+        telegramp4_camera_deinit();
+    }
+
+    esp_err_t err = init_video_system();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_video_init failed (video mode): %s", esp_err_to_name(err));
+        return err;
+    }
+
+    struct v4l2_capability cap;
+    struct v4l2_format init_format = {0};
+    struct v4l2_format format = {0};
+    struct v4l2_requestbuffers req = {0};
+    struct v4l2_buffer buf;
+
+    s_vid_cap_fd = open(ESP_VIDEO_MIPI_CSI_DEVICE_NAME, O_RDONLY);
+    if (s_vid_cap_fd < 0) {
+        ESP_LOGE(TAG, "Failed to open %s (video mode)", ESP_VIDEO_MIPI_CSI_DEVICE_NAME);
+        goto fail;
+    }
+    if (ioctl(s_vid_cap_fd, VIDIOC_QUERYCAP, &cap) != 0) {
+        ESP_LOGE(TAG, "VIDIOC_QUERYCAP failed on capture device (video mode)");
+        goto fail;
+    }
+
+    /* Use the sensor's default resolution, same as photo mode. */
+    init_format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    if (ioctl(s_vid_cap_fd, VIDIOC_G_FMT, &init_format) != 0) {
+        ESP_LOGE(TAG, "Failed to get default camera format (video mode)");
+        goto fail;
+    }
+    s_width = init_format.fmt.pix.width;
+    s_height = init_format.fmt.pix.height;
+
+    /* Ask the ISP to output packed YUV420 directly - this is the exact
+     * format espressif/esp_video's H.264 M2M device (/dev/video11) expects
+     * as input (confirmed from its source: it feeds this buffer straight
+     * into the hardware encoder with no conversion of its own), and the
+     * ISP driver's own CSI format table lists V4L2_PIX_FMT_YUV420 as a
+     * real supported output color format (ISP_COLOR_YUV420) - not a guess. */
+    format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    format.fmt.pix.width = s_width;
+    format.fmt.pix.height = s_height;
+    format.fmt.pix.pixelformat = V4L2_PIX_FMT_YUV420;
+    if (ioctl(s_vid_cap_fd, VIDIOC_S_FMT, &format) != 0) {
+        ESP_LOGE(TAG, "VIDIOC_S_FMT (YUV420 capture) failed - sensor/ISP may not support this "
+                       "output format on this board, see docs/hardware.md");
+        goto fail;
+    }
+
+    req.count = CAP_BUFFER_COUNT;
+    req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    req.memory = V4L2_MEMORY_MMAP;
+    if (ioctl(s_vid_cap_fd, VIDIOC_REQBUFS, &req) != 0) {
+        ESP_LOGE(TAG, "VIDIOC_REQBUFS (video capture) failed");
+        goto fail;
+    }
+    for (int i = 0; i < CAP_BUFFER_COUNT; i++) {
+        memset(&buf, 0, sizeof(buf));
+        buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        buf.memory = V4L2_MEMORY_MMAP;
+        buf.index = i;
+        if (ioctl(s_vid_cap_fd, VIDIOC_QUERYBUF, &buf) != 0) {
+            goto fail;
+        }
+        s_vid_cap_buffer[i] = (uint8_t *) mmap(NULL, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, s_vid_cap_fd, buf.m.offset);
+        if (!s_vid_cap_buffer[i]) {
+            goto fail;
+        }
+        if (ioctl(s_vid_cap_fd, VIDIOC_QBUF, &buf) != 0) {
+            goto fail;
+        }
+    }
+
+    /* H.264 hardware encoder (M2M): output side takes raw YUV420 (zero-copy, USERPTR). */
+    s_vid_enc_fd = open(ESP_VIDEO_H264_DEVICE_NAME, O_RDONLY);
+    if (s_vid_enc_fd < 0) {
+        ESP_LOGE(TAG, "Failed to open %s - enable CONFIG_ESP_VIDEO_ENABLE_HW_H264_VIDEO_DEVICE", ESP_VIDEO_H264_DEVICE_NAME);
+        goto fail;
+    }
+
+    memset(&format, 0, sizeof(format));
+    format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+    format.fmt.pix.width = s_width;
+    format.fmt.pix.height = s_height;
+    format.fmt.pix.pixelformat = V4L2_PIX_FMT_YUV420;
+    if (ioctl(s_vid_enc_fd, VIDIOC_S_FMT, &format) != 0) {
+        ESP_LOGE(TAG, "VIDIOC_S_FMT (encoder output) failed");
+        goto fail;
+    }
+
+    struct v4l2_control ctrl = { .id = V4L2_CID_MPEG_VIDEO_BITRATE, .value = (int32_t) bitrate_bps };
+    if (ioctl(s_vid_enc_fd, VIDIOC_S_CTRL, &ctrl) != 0) {
+        ESP_LOGW(TAG, "Failed to set H.264 bitrate control, using device default");
+    }
+
+    memset(&req, 0, sizeof(req));
+    req.count = 1;
+    req.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+    req.memory = V4L2_MEMORY_USERPTR;
+    if (ioctl(s_vid_enc_fd, VIDIOC_REQBUFS, &req) != 0) {
+        goto fail;
+    }
+
+    memset(&format, 0, sizeof(format));
+    format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    format.fmt.pix.width = s_width;
+    format.fmt.pix.height = s_height;
+    format.fmt.pix.pixelformat = V4L2_PIX_FMT_H264;
+    if (ioctl(s_vid_enc_fd, VIDIOC_S_FMT, &format) != 0) {
+        ESP_LOGE(TAG, "VIDIOC_S_FMT (encoder H.264 capture) failed");
+        goto fail;
+    }
+    memset(&req, 0, sizeof(req));
+    req.count = 1;
+    req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    req.memory = V4L2_MEMORY_MMAP;
+    if (ioctl(s_vid_enc_fd, VIDIOC_REQBUFS, &req) != 0) {
+        goto fail;
+    }
+    memset(&buf, 0, sizeof(buf));
+    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    buf.memory = V4L2_MEMORY_MMAP;
+    buf.index = 0;
+    if (ioctl(s_vid_enc_fd, VIDIOC_QUERYBUF, &buf) != 0) {
+        goto fail;
+    }
+    s_vid_enc_buffer = (uint8_t *) mmap(NULL, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, s_vid_enc_fd, buf.m.offset);
+    if (!s_vid_enc_buffer) {
+        goto fail;
+    }
+    if (ioctl(s_vid_enc_fd, VIDIOC_QBUF, &buf) != 0) {
+        goto fail;
+    }
+
+    {
+        int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        if (ioctl(s_vid_enc_fd, VIDIOC_STREAMON, &type) != 0) goto fail;
+        type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+        if (ioctl(s_vid_enc_fd, VIDIOC_STREAMON, &type) != 0) goto fail;
+        type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        if (ioctl(s_vid_cap_fd, VIDIOC_STREAMON, &type) != 0) goto fail;
+    }
+
+    s_video_mode = true;
+    ESP_LOGI(TAG, "Video mode started (%" PRIu32 "x%" PRIu32 ", H.264 @ %" PRIu32 " bps)", s_width, s_height, bitrate_bps);
+    return ESP_OK;
+
+fail:
+    telegramp4_camera_stop_video_mode();
+    return ESP_FAIL;
+}
+
+esp_err_t telegramp4_camera_read_video_frame(telegramp4_camera_frame_t *out_frame)
+{
+    if (!s_video_mode) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    struct v4l2_buffer cap_buf = {0};
+    struct v4l2_buffer enc_out_buf = {0};
+    struct v4l2_buffer enc_cap_buf = {0};
+
+    cap_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    cap_buf.memory = V4L2_MEMORY_MMAP;
+    if (ioctl(s_vid_cap_fd, VIDIOC_DQBUF, &cap_buf) != 0) {
+        ESP_LOGE(TAG, "VIDIOC_DQBUF (video capture) failed");
+        return ESP_FAIL;
+    }
+
+    enc_out_buf.index = 0;
+    enc_out_buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+    enc_out_buf.memory = V4L2_MEMORY_USERPTR;
+    enc_out_buf.m.userptr = (unsigned long) s_vid_cap_buffer[cap_buf.index];
+    enc_out_buf.length = cap_buf.bytesused;
+    if (ioctl(s_vid_enc_fd, VIDIOC_QBUF, &enc_out_buf) != 0) {
+        ESP_LOGE(TAG, "VIDIOC_QBUF (H.264 encoder output) failed");
+        ioctl(s_vid_cap_fd, VIDIOC_QBUF, &cap_buf);
+        return ESP_FAIL;
+    }
+
+    enc_cap_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    enc_cap_buf.memory = V4L2_MEMORY_MMAP;
+    if (ioctl(s_vid_enc_fd, VIDIOC_DQBUF, &enc_cap_buf) != 0) {
+        ESP_LOGE(TAG, "VIDIOC_DQBUF (H.264 encoded frame) failed");
+        ioctl(s_vid_cap_fd, VIDIOC_QBUF, &cap_buf);
+        return ESP_FAIL;
+    }
+
+    uint8_t *nal_copy = (uint8_t *) malloc(enc_cap_buf.bytesused);
+    if (!nal_copy) {
+        ioctl(s_vid_cap_fd, VIDIOC_QBUF, &cap_buf);
+        ioctl(s_vid_enc_fd, VIDIOC_DQBUF, &enc_out_buf);
+        ioctl(s_vid_enc_fd, VIDIOC_QBUF, &enc_cap_buf);
+        return ESP_ERR_NO_MEM;
+    }
+    memcpy(nal_copy, s_vid_enc_buffer, enc_cap_buf.bytesused);
+
+    ioctl(s_vid_cap_fd, VIDIOC_QBUF, &cap_buf);
+    ioctl(s_vid_enc_fd, VIDIOC_DQBUF, &enc_out_buf);
+    ioctl(s_vid_enc_fd, VIDIOC_QBUF, &enc_cap_buf);
+
+    out_frame->data = nal_copy;
+    out_frame->len = enc_cap_buf.bytesused;
+    return ESP_OK;
+}
+
+esp_err_t telegramp4_camera_stop_video_mode(void)
+{
+    if (s_vid_cap_fd >= 0) {
+        int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        ioctl(s_vid_cap_fd, VIDIOC_STREAMOFF, &type);
+        close(s_vid_cap_fd);
+        s_vid_cap_fd = -1;
+    }
+    if (s_vid_enc_fd >= 0) {
+        int type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+        ioctl(s_vid_enc_fd, VIDIOC_STREAMOFF, &type);
+        type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        ioctl(s_vid_enc_fd, VIDIOC_STREAMOFF, &type);
+        close(s_vid_enc_fd);
+        s_vid_enc_fd = -1;
+    }
+    esp_video_deinit();
+    s_video_mode = false;
+
+    /* Restore the photo/JPEG pipeline so /photo works again right away. */
+    esp_err_t err = telegramp4_camera_init();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to restore photo mode after video recording: %s", esp_err_to_name(err));
+    }
+    return ESP_OK;
 }

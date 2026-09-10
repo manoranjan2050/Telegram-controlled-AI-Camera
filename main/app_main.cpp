@@ -405,9 +405,11 @@ struct video_task_args_t {
 };
 
 /**
- * Runs on its own task, never on the Telegram poll task, so a (currently
- * stubbed, eventually multi-second) recording never blocks command handling
- * for other chats - see docs/architecture.md task model.
+ * Runs on its own task, never on the Telegram poll task, so a multi-second
+ * recording never blocks command handling for other chats - see
+ * docs/architecture.md task model. Video mode takes over the camera's whole
+ * MIPI-CSI pipeline (see telegramp4_camera.h), so /photo is briefly
+ * unavailable while this runs and resumes automatically once it finishes.
  */
 static void video_record_task(void *arg)
 {
@@ -421,15 +423,28 @@ static void video_record_task(void *arg)
     esp_err_t err = telegramp4_video_record(a->duration_s, &result);
     if (err != ESP_OK) {
         telegramp4_telegram_send_message(a->chat_id,
-            "\xE2\x9D\x8C Camera unavailable.\nCheck camera connection.");
+            "\xE2\x9D\x8C Video recording failed.\nCheck camera connection.");
     } else {
-        uint8_t *data = NULL;
-        size_t len = 0;
-        if (read_file_into_buffer(result.path, &data, &len)) {
-            telegramp4_telegram_send_message(a->chat_id, "Uploading...");
-            telegramp4_telegram_send_document(a->chat_id, data, len, "video.mp4");
-            free(data);
+        /* Save to SD (best-effort, same pattern as photo capture) before/independent of upload. */
+        telegramp4_storage_status_t storage = telegramp4_storage_get_status();
+        if (storage.mounted) {
+            char filename[32];
+            snprintf(filename, sizeof(filename), "video_%lld.h264", (long long) esp_timer_get_time() / 1000000);
+            char path[160];
+            if (telegramp4_storage_sanitize_path("videos", filename, path, sizeof(path))) {
+                FILE *f = fopen(path, "wb");
+                if (f) {
+                    fwrite(result.data, 1, result.len, f);
+                    fclose(f);
+                } else {
+                    ESP_LOGW(TAG, "Failed to save video to %s", path);
+                }
+            }
         }
+
+        telegramp4_telegram_send_message(a->chat_id, "Uploading...");
+        telegramp4_telegram_send_document(a->chat_id, result.data, result.len, "video.h264");
+        telegramp4_video_release(&result);
     }
 
     free(a);
