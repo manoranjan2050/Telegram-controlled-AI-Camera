@@ -13,6 +13,8 @@
 #include "esp_idf_version.h"
 #include "esp_system.h"
 #include "nvs_flash.h"
+#include "driver/gpio.h"
+#include "telegramp4_provisioning.h"
 #include "telegramp4_board.h"
 #include "telegramp4_wifi.h"
 #include "telegramp4_telegram.h"
@@ -1160,6 +1162,39 @@ extern "C" void app_main(void)
     }
     ESP_ERROR_CHECK(nvs_ret);
 
+    /*
+     * Hold the BOOT button (GPIO35) while powering on to force re-entry into
+     * the setup portal even if a configuration is already saved - the only
+     * way to change WiFi/Telegram settings without a full reflash, since
+     * there's no live "reconfigure" command (you'd need the bot token to
+     * still work to receive it, which defeats the point if that's what
+     * you're changing).
+     */
+    /* GPIO35 = BOOT button, confirmed in DFRobot's own DFR1172 spec table (docs/hardware.md). */
+    #define TELEGRAMP4_BOOT_BUTTON_GPIO 35
+    gpio_config_t boot_btn_cfg = {
+        .pin_bit_mask = 1ULL << TELEGRAMP4_BOOT_BUTTON_GPIO,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+    };
+    gpio_config(&boot_btn_cfg);
+    bool boot_button_held = (gpio_get_level((gpio_num_t) TELEGRAMP4_BOOT_BUTTON_GPIO) == 0);
+
+    telegramp4_provisioning_config_t prov_cfg = {0};
+    bool have_config = telegramp4_provisioning_load(&prov_cfg);
+
+    if (boot_button_held) {
+        ESP_LOGW(TAG, "BOOT button held at power-on - clearing saved configuration and starting setup portal.");
+        telegramp4_provisioning_clear();
+        telegramp4_provisioning_run_portal(); /* never returns */
+    }
+    if (!have_config) {
+        ESP_LOGW(TAG, "No WiFi/Telegram configuration found - starting setup portal.");
+        telegramp4_provisioning_run_portal(); /* never returns */
+    }
+
+    telegramp4_security_configure(prov_cfg.chat_ids);
+
     telegramp4_board_print_banner();
 
     /*
@@ -1190,7 +1225,7 @@ extern "C" void app_main(void)
         ESP_LOGW(TAG, "SD card not available: %s (device continues without it)", esp_err_to_name(storage_ret));
     }
 
-    ESP_ERROR_CHECK(telegramp4_wifi_init());
+    ESP_ERROR_CHECK(telegramp4_wifi_init(prov_cfg.wifi_ssid, prov_cfg.wifi_password));
     if (telegramp4_wifi_wait_connected(CONFIG_TELEGRAMP4_WIFI_CONNECT_TIMEOUT_MS)) {
         char ip[16] = {0};
         telegramp4_wifi_get_ip_str(ip, sizeof(ip));
@@ -1245,7 +1280,7 @@ extern "C" void app_main(void)
         xTaskCreate(display_status_task, "display_status", 3072, NULL, 3, NULL);
     }
 
-    esp_err_t telegram_ret = telegramp4_telegram_start();
+    esp_err_t telegram_ret = telegramp4_telegram_start(prov_cfg.bot_token);
     if (telegram_ret != ESP_OK) {
         ESP_LOGE(TAG, "Telegram bot failed to start: %s", esp_err_to_name(telegram_ret));
     }

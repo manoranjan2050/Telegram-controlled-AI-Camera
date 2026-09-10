@@ -1,8 +1,10 @@
 /**
  * telegramp4_wifi — Wi-Fi station connectivity.
  *
- * SSID/password come from Kconfig (TelegramP4 Configuration -> WiFi), never
- * hardcoded and never logged. Handles automatic reconnect on disconnect.
+ * SSID/password are passed in by the caller (main/app_main.cpp, sourced from
+ * telegramp4_provisioning - either the setup portal's saved NVS values, or
+ * Kconfig defaults for developers who bake real credentials into sdkconfig).
+ * Never hardcoded and never logged. Handles automatic reconnect on disconnect.
  */
 #pragma once
 
@@ -22,11 +24,11 @@ typedef enum {
 
 /**
  * Initializes NVS-backed Wi-Fi, netif, and the default event loop, then starts
- * connecting in STA mode using the Kconfig-configured SSID/password. Non-blocking
- * — use telegramp4_wifi_wait_connected() if you need to block until the first
+ * connecting in STA mode using the given SSID/password. Non-blocking — use
+ * telegramp4_wifi_wait_connected() if you need to block until the first
  * connection succeeds or times out.
  */
-esp_err_t telegramp4_wifi_init(void);
+esp_err_t telegramp4_wifi_init(const char *ssid, const char *password);
 
 /**
  * Blocks until Wi-Fi connects or `timeout_ms` elapses.

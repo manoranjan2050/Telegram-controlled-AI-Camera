@@ -20,6 +20,13 @@ Product page: https://www.dfrobot.com/product-2915.html
 Track progress here so a new session knows where to resume.
 
 **Real hardware test log (2026-09-10, FireBeetle 2 ESP32-P4 DFR1172):**
+- ✅ **Web setup portal added.** First-time users flash once with no
+  credentials baked in; the device starts a SoftAP (`TelegramP4-Setup`) +
+  web page at `http://192.168.4.1/` for entering WiFi + Telegram bot
+  token/chat ID, saves to NVS, and reboots into normal operation. Hold
+  BOOT (GPIO35) at power-on to re-enter setup later. Developers who prefer
+  baking real values into `sdkconfig` are unaffected (NVS checked first,
+  falls back to Kconfig). See docs/lessons/17-provisioning.md.
 - ✅ WiFi connects reliably (`esp_wifi_remote` over SDIO to the C6)
 - ✅ Telegram bot connects and responds (`@ESP3P4AIbot`), button menu works
 - ✅ **PSRAM boot-loop FIXED.** Root cause: with `CONFIG_SPIRAM=y`, the

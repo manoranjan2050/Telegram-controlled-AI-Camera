@@ -47,7 +47,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-esp_err_t telegramp4_wifi_init(void)
+esp_err_t telegramp4_wifi_init(const char *ssid, const char *password)
 {
     s_wifi_event_group = xEventGroupCreate();
 
@@ -62,8 +62,8 @@ esp_err_t telegramp4_wifi_init(void)
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL));
 
     wifi_config_t wifi_config = { 0 };
-    strncpy((char *) wifi_config.sta.ssid, CONFIG_TELEGRAMP4_WIFI_SSID, sizeof(wifi_config.sta.ssid) - 1);
-    strncpy((char *) wifi_config.sta.password, CONFIG_TELEGRAMP4_WIFI_PASSWORD, sizeof(wifi_config.sta.password) - 1);
+    strncpy((char *) wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
+    strncpy((char *) wifi_config.sta.password, password, sizeof(wifi_config.sta.password) - 1);
     wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));

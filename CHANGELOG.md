@@ -3,6 +3,25 @@
 All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - 2026-09-10 (round 5: web setup portal for first-time provisioning)
+
+### Added
+- **First-time setup web dashboard** (`telegramp4_provisioning`). A device
+  flashed with no WiFi/Telegram credentials baked in starts a SoftAP
+  (`TelegramP4-Setup`) and a web server at `http://192.168.4.1/` with a
+  form for WiFi SSID/password, Telegram bot token, and chat ID(s).
+  Submitting it saves the values to NVS and reboots into normal operation
+  - no `idf.py menuconfig`, rebuild, or serial connection needed. Holding
+  the BOOT button (GPIO35) at power-on forces re-entry into setup later.
+  `telegramp4_wifi_init()`, `telegramp4_telegram_start()`, and
+  `telegramp4_security_configure()` all changed from reading Kconfig
+  directly to taking these values as parameters; developers who still bake
+  real credentials into `sdkconfig` are unaffected (NVS checked first,
+  falls back to Kconfig only if NVS is empty). Verified live: portal
+  starts on an unconfigured device, the setup page renders and is
+  reachable at 192.168.4.1, and submitting it correctly saves to NVS and
+  reboots. See docs/lessons/17-provisioning.md.
+
 ## [Unreleased] - 2026-09-10 (real hardware, round 4: SD card fixed - it was never hardware)
 
 ### Fixed

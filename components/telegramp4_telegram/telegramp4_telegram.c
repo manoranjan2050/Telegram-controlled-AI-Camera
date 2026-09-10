@@ -712,19 +712,17 @@ static void telegram_poll_task(void *arg)
     }
 }
 
-esp_err_t telegramp4_telegram_start(void)
+esp_err_t telegramp4_telegram_start(const char *bot_token)
 {
     register_builtin_commands();
 
-    snprintf(s_api_base, sizeof(s_api_base), "https://api.telegram.org/bot%s",
-              CONFIG_TELEGRAMP4_TELEGRAM_BOT_TOKEN);
-
-    if (strlen(CONFIG_TELEGRAMP4_TELEGRAM_BOT_TOKEN) == 0 ||
-        strcmp(CONFIG_TELEGRAMP4_TELEGRAM_BOT_TOKEN, "123456789:REPLACE_WITH_YOUR_BOT_TOKEN") == 0) {
-        ESP_LOGE(TAG, "Telegram bot token not configured. Run `idf.py menuconfig` -> "
-                       "TelegramP4 Configuration -> Telegram.");
+    if (!bot_token || strlen(bot_token) == 0) {
+        ESP_LOGE(TAG, "Telegram bot token not configured. Run the setup portal "
+                       "(hold BOOT at power-on) or set it via `idf.py menuconfig`.");
         return ESP_ERR_INVALID_STATE;
     }
+
+    snprintf(s_api_base, sizeof(s_api_base), "https://api.telegram.org/bot%s", bot_token);
 
     /* getMe confirms the token is valid without ever logging the token itself. */
     char url[128];

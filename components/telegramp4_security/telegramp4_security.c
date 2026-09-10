@@ -9,13 +9,21 @@ static const char *TAG = "TAG_SECURITY";
 
 static int64_t s_allowed_ids[MAX_ALLOWED_CHAT_IDS];
 static int     s_allowed_count = -1; /* -1 = not parsed yet */
+static char    s_chat_ids_csv[128] = {0};
+
+void telegramp4_security_configure(const char *chat_ids_csv)
+{
+    strncpy(s_chat_ids_csv, chat_ids_csv ? chat_ids_csv : "", sizeof(s_chat_ids_csv) - 1);
+    s_allowed_count = -1; /* force reparse on next check */
+}
 
 static void parse_allowed_ids(void)
 {
     s_allowed_count = 0;
 
     char buf[256];
-    strncpy(buf, CONFIG_TELEGRAMP4_TELEGRAM_ALLOWED_CHAT_IDS, sizeof(buf) - 1);
+    const char *source = strlen(s_chat_ids_csv) > 0 ? s_chat_ids_csv : CONFIG_TELEGRAMP4_TELEGRAM_ALLOWED_CHAT_IDS;
+    strncpy(buf, source, sizeof(buf) - 1);
     buf[sizeof(buf) - 1] = '\0';
 
     char *saveptr = NULL;

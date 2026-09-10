@@ -6,8 +6,9 @@
  * (Phase 3), and chat-ID authorization enforced before any handler runs
  * (Phase 3, via telegramp4_security).
  *
- * The bot token is read from Kconfig (CONFIG_TELEGRAMP4_TELEGRAM_BOT_TOKEN) and is
- * never logged or returned by any function in this header.
+ * The bot token is passed in by the caller (main/app_main.cpp, sourced from
+ * telegramp4_provisioning) and is never logged or returned by any function
+ * in this header.
  */
 #pragma once
 
@@ -34,12 +35,12 @@ typedef void (*telegramp4_command_handler_t)(int64_t chat_id, const char *args);
 esp_err_t telegramp4_telegram_register_command(const char *command, telegramp4_command_handler_t handler);
 
 /**
- * Verifies the bot token works (calls getMe) and starts the long-polling task.
+ * Verifies `bot_token` works (calls getMe) and starts the long-polling task.
  * Requires WiFi to already be connected (or connecting) — the poll loop will
  * simply keep getting HTTP errors and retry if WiFi drops, it does not manage
  * WiFi itself. Register all commands before calling this.
  */
-esp_err_t telegramp4_telegram_start(void);
+esp_err_t telegramp4_telegram_start(const char *bot_token);
 
 /** Sends a plain-text message to the given chat ID. Returns ESP_OK on HTTP 200. */
 esp_err_t telegramp4_telegram_send_message(int64_t chat_id, const char *text);
