@@ -74,6 +74,16 @@ esp_err_t telegramp4_audio_record(uint32_t duration_s, telegramp4_audio_result_t
             .invert_flags = { .clk_inv = false },
         },
     };
+    /*
+     * Confirmed 2026-09-11 on real hardware: recordings came out very quiet
+     * with I2S_PDM_RX_SLOT_DEFAULT_CONFIG's default digital gain
+     * (amplify_num=1, the driver's minimum). This multiplies the converted
+     * PCM samples post hardware PDM-to-PCM conversion - range is 1-15 per
+     * driver/i2s_pdm.h. 8 gives a substantial, still headroom-safe boost;
+     * raise further (up to 15) if recordings are still too quiet, or lower
+     * if loud sounds start clipping.
+     */
+    pdm_rx_cfg.slot_cfg.amplify_num = 8;
     err = i2s_channel_init_pdm_rx_mode(rx_handle, &pdm_rx_cfg);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "i2s_channel_init_pdm_rx_mode failed: %s (check PDM CLK/DATA pins in docs/hardware.md)",

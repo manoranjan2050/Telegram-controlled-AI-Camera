@@ -3,6 +3,32 @@
 All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - 2026-09-11 (round 7: fixed dark photos/video and quiet audio)
+
+### Fixed
+- **Dark/underexposed photos and video.** User-reported real-world quality
+  issue, root-caused in two attempts. First attempt: the OV5647's AE-target
+  register (`ESP_CAM_SENSOR_EXPOSURE_VAL`, mapped to `V4L2_CID_EXPOSURE`)
+  seemed like the fix, but setting it via `VIDIOC_S_CTRL` silently failed -
+  reading `esp_video_ioctl.c` showed this esp_video version only implements
+  the extended controls API (`VIDIOC_S_EXT_CTRLS`), not the simple one.
+  Real root cause, found by reading `esp_video_init.c`:
+  `CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER` (default `n`) gates
+  Espressif's entire closed-loop 3A controller (`esp_ipa`'s
+  auto-exposure/auto-gain/auto-white-balance algorithms, already vendored
+  but never running) - with it off, the camera had zero active exposure
+  control at all, ever. Enabling the flag starts the controller
+  automatically inside the existing `esp_video_init()` call - no
+  application code change needed for the fix itself. Also raised the
+  pre-capture "let AE settle" frame skip from 2 to 12 in both photo and
+  video pipelines (video mode had no settle step at all before). Confirmed
+  visually via a before/after photo captured over a temporary
+  base64-over-serial dump: near-total black before, clearly readable
+  "RADEON" text and RGB lighting detail after, same dim room.
+- **Quiet audio recordings.** `I2S_PDM_RX_SLOT_DEFAULT_CONFIG()`'s
+  `amplify_num` (post-conversion digital gain, range 1-15) defaulted to 1,
+  the driver's minimum. Raised to 8 in `telegramp4_audio.c`.
+
 ## [Unreleased] - 2026-09-10 (round 6: real H.264 video recording)
 
 ### Added

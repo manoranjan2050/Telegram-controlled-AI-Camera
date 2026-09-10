@@ -36,6 +36,26 @@ static int      s_vid_enc_fd = -1;
 static uint8_t *s_vid_cap_buffer[CAP_BUFFER_COUNT];
 static uint8_t *s_vid_enc_buffer;
 
+/*
+ * Confirmed 2026-09-11 on real hardware: photos and video both came out
+ * noticeably dark/underexposed. First hypothesis - the sensor's own onboard
+ * AE-target register defaults too low, nudge it via a V4L2 control - turned
+ * out to be the wrong mechanism entirely: espressif/esp_video's ioctl
+ * dispatcher doesn't implement the simple VIDIOC_S_CTRL at all (only the
+ * extended-controls API, VIDIOC_S_EXT_CTRLS), so that first attempt just
+ * silently failed. The REAL root cause, found by reading esp_video_init.c:
+ * `CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER` (default `n`) gates
+ * Espressif's entire closed-loop 3A controller (a dedicated "isp_task" that
+ * continuously runs the IPA auto-exposure/auto-gain/auto-white-balance
+ * algorithms - see managed_components/espressif__esp_ipa - and feeds the
+ * results back to the sensor via VIDIOC_S_EXT_CTRLS). With it off, the
+ * camera was running on the sensor's raw power-on register defaults with
+ * *no* active exposure control at all, for every capture so far. Enabling
+ * it in sdkconfig.defaults starts that controller automatically as part of
+ * the same esp_video_init() call this component already makes - no other
+ * code change needed here. See docs/lessons/05-camera.md.
+ */
+
 static esp_err_t init_video_system(void)
 {
     esp_video_init_csi_config_t csi_config = {
@@ -228,8 +248,14 @@ static esp_err_t start_pipeline(void)
     type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if (ioctl(s_cap_fd, VIDIOC_STREAMON, &type) != 0) return ESP_FAIL;
 
-    /* Skip a couple of startup frames to let auto-exposure settle. */
-    for (int i = 0; i < 2; i++) {
+    /*
+     * Skip startup frames to let the ISP pipeline controller's auto-exposure
+     * loop (CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER - see
+     * docs/lessons/05-camera.md) actually converge. 2 frames (the original
+     * value) was nowhere near enough - the controller needs several
+     * image-statistics feedback cycles to adjust exposure/gain, not one or two.
+     */
+    for (int i = 0; i < 12; i++) {
         memset(&buf, 0, sizeof(buf));
         buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         buf.memory = V4L2_MEMORY_MMAP;
@@ -507,6 +533,20 @@ esp_err_t telegramp4_camera_start_video_mode(uint32_t bitrate_bps)
     }
 
     s_video_mode = true;
+
+    /* Settle auto-exposure before recording actually starts - see
+     * start_pipeline()'s equivalent settle loop for why this matters.
+     * Discard these frames rather than skipping the encode step, so the
+     * capture/encoder buffer queues stay in the same steady state
+     * telegramp4_camera_read_video_frame() expects. */
+    for (int i = 0; i < 12; i++) {
+        telegramp4_camera_frame_t settle_frame = {0};
+        if (telegramp4_camera_read_video_frame(&settle_frame) != ESP_OK) {
+            break;
+        }
+        telegramp4_camera_release_frame(&settle_frame);
+    }
+
     ESP_LOGI(TAG, "Video mode started (%" PRIu32 "x%" PRIu32 ", H.264 @ %" PRIu32 " bps)", s_width, s_height, bitrate_bps);
     return ESP_OK;
 

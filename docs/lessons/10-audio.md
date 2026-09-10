@@ -31,6 +31,19 @@ works regardless of SD state; a copy is still saved to `/sdcard/audio/`
 when storage is mounted (best-effort, the same pattern already used for
 `/photo`).
 
+## ✅ Resolved 2026-09-11: recordings were too quiet
+
+Once real recordings were confirmed working, the user reported the audio
+came out very low-volume. Root cause: `I2S_PDM_RX_SLOT_DEFAULT_CONFIG()`
+sets `amplify_num = 1` - the minimum of the driver's 1-15 digital gain
+range (`driver/i2s_pdm.h`), applied to samples after the hardware's
+PDM-to-PCM conversion. It's a sane, conservative default for an unknown
+microphone, but not for this specific one at a comfortable recording
+distance. Overriding `pdm_rx_cfg.slot_cfg.amplify_num = 8` after the macro
+gives a substantial boost. Raise further (up to 15) if still too quiet, or
+lower if loud sounds start clipping - see the comment in
+`telegramp4_audio.c` right above where it's set.
+
 ## What you learn
 
 - ESP-IDF's I2S PDM RX API (`i2s_new_channel` → `i2s_channel_init_pdm_rx_mode`

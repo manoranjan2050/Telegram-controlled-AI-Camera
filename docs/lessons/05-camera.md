@@ -77,7 +77,59 @@ bring-up code itself is real, not a stub.
 
 </details>
 
+## ✅ Resolved 2026-09-11: fixed dark/underexposed photos and video
+
+Once real captures were flowing, the next real-world problem showed up:
+photos and video both came out noticeably dark — recognizable but dim, and
+genuinely too dark in low light. The user asked directly whether this was
+a camera hardware issue or a code issue; it was code, and root-causing it
+took two attempts.
+
+**First attempt (wrong mechanism)**: the OV5647 driver
+(`esp_cam_sensor`'s `ov5647.c`) exposes an `ESP_CAM_SENSOR_EXPOSURE_VAL`
+parameter (an AE *target* register, default `0x50`/80 out of 2-235) mapped
+to the standard `V4L2_CID_EXPOSURE` control. Setting it via
+`ioctl(fd, VIDIOC_S_CTRL, ...)` seemed like the obvious fix - it compiled,
+ran, and silently failed every time (`Failed to raise AE target`). Reading
+`esp_video_ioctl.c` explained why: this esp_video version only implements
+the **extended** controls API (`VIDIOC_S_EXT_CTRLS`/`struct
+v4l2_ext_controls`) - the simple, singular `VIDIOC_S_CTRL` isn't wired up
+for camera controls at all, so every call to it was a no-op wrapped in a
+misleadingly-generic ioctl error.
+
+**Real root cause**: reading `esp_video_init.c` (not guessing) revealed
+`CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER` (default `n`). This gates
+Espressif's *entire* closed-loop 3A controller - a dedicated `isp_task`
+that continuously reads ISP hardware statistics, runs the IPA
+auto-exposure/auto-gain/auto-white-balance algorithms
+(`managed_components/espressif__esp_ipa/`, already vendored but never
+actually running), and feeds the results back to the sensor via
+`VIDIOC_S_EXT_CTRLS`. With it off, the camera had been running this whole
+time on the sensor's raw power-on register defaults with **no active
+exposure control whatsoever** - not a slightly-wrong setting, a completely
+disabled feedback loop. Enabling the one Kconfig flag starts the
+controller automatically as part of the existing `esp_video_init()` call;
+no application code change was needed for the fix itself.
+
+Also bumped the pre-capture "let auto-exposure settle" frame skip from 2
+to 12 in both the photo pipeline (`start_pipeline()`) and video mode
+(`telegramp4_camera_start_video_mode()`, which previously had no settle
+step at all) - a real closed-loop controller needs several feedback
+cycles to converge, not one or two frames.
+
+**Confirmed visually**: captured a photo before and after via a temporary
+base64-over-serial dump (real end-to-end verification, not just checking
+that a JPEG file was produced) - the "before" frame was almost entirely
+black with a single bright accent point; the "after" frame, taken in the
+same dim room, clearly showed "RADEON" text on a graphics card, individual
+fan blades, cables, and RGB lighting detail. Still a dark room in absolute
+terms, but the difference between "unusable" and "a real photo" was stark
+and immediate.
+
 ## Code
+
+- [`sdkconfig.defaults`](../../sdkconfig.defaults) —
+  `CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER=y`
 
 - [`components/telegramp4_camera/`](../../components/telegramp4_camera/) —
   `telegramp4_camera_init/deinit/capture/release_frame/get_status`, real

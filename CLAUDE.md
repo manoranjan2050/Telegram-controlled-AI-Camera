@@ -19,7 +19,21 @@ Product page: https://www.dfrobot.com/product-2915.html
 
 Track progress here so a new session knows where to resume.
 
-**Real hardware test log (2026-09-10, FireBeetle 2 ESP32-P4 DFR1172):**
+**Real hardware test log (2026-09-11, FireBeetle 2 ESP32-P4 DFR1172):**
+- ✅ **Fixed dark/underexposed photos and video.** Root cause:
+  `CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER` (default off) gates
+  Espressif's entire closed-loop 3A auto-exposure/auto-gain/auto-white-balance
+  controller - with it off, the camera ran on the sensor's raw power-on
+  defaults with zero active exposure control. A first attempt (nudging the
+  sensor's AE-target register via `VIDIOC_S_CTRL`) failed silently because
+  esp_video only implements the extended controls API
+  (`VIDIOC_S_EXT_CTRLS`), not the simple one. Confirmed visually via a
+  before/after photo dumped over serial: near-total black before, clearly
+  readable "RADEON" text and RGB lighting detail after, same dim room. See
+  docs/lessons/05-camera.md.
+- ✅ **Fixed quiet audio recordings.** `I2S_PDM_RX_SLOT_DEFAULT_CONFIG()`'s
+  `amplify_num` defaulted to 1 (the driver's minimum, range 1-15) - raised
+  to 8 in `telegramp4_audio.c`. See docs/lessons/10-audio.md.
 - ✅ **Real H.264 video recording works.** `espressif/esp_video` exposes
   the P4's hardware H.264 encoder as a V4L2 M2M device (`/dev/video11`,
   same pattern as the JPEG path) - needed `CONFIG_ESP_VIDEO_ENABLE_HW_H264_VIDEO_DEVICE=y`

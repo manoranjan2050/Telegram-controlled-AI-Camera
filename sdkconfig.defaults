@@ -72,6 +72,18 @@ CONFIG_ESP_VIDEO_ENABLE_HW_JPEG_ENC_VIDEO_DEVICE=y
 # open(ESP_VIDEO_H264_DEVICE_NAME) always fails.
 CONFIG_ESP_VIDEO_ENABLE_HW_H264_VIDEO_DEVICE=y
 
+# Confirmed 2026-09-11 on real hardware: photos and video were both coming
+# out noticeably dark/underexposed. Root cause - this option (default "n")
+# gates Espressif's entire closed-loop 3A controller (a dedicated "isp_task"
+# that runs the IPA auto-exposure/auto-gain/auto-white-balance algorithms
+# and feeds results back to the sensor). With it off, the camera runs on
+# the sensor's raw power-on register defaults with *no* active exposure
+# control at all. Enabling it starts the controller automatically as part
+# of the existing esp_video_init() call - no application code change
+# needed. See components/telegramp4_camera/telegramp4_camera.c and
+# docs/lessons/05-camera.md.
+CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER=y
+
 # Confirmed 2026-09-10 on real hardware: CONFIG_VFS_MAX_COUNT (default 8) is a
 # fixed-size table of *registered VFS backends* (not open file descriptors) -
 # console/stdio + eventfd take a few slots on their own, esp_video registers
