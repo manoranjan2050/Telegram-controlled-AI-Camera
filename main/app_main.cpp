@@ -55,6 +55,8 @@ static int64_t s_last_ai_inference_ms = -1; /* -1 = no AI run yet; set by handle
 static void handler_photo(int64_t chat_id, const char *args)
 {
     (void) args;
+    telegramp4_telegram_send_message(chat_id, "\xF0\x9F\x93\xB8 Taking photo...");
+
     telegramp4_camera_frame_t frame = {0};
     esp_err_t err = telegramp4_camera_capture(&frame);
     if (err != ESP_OK) {
