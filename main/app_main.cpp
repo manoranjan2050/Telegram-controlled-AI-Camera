@@ -1162,15 +1162,22 @@ extern "C" void app_main(void)
 
     telegramp4_board_print_banner();
 
-    ESP_ERROR_CHECK(telegramp4_wifi_init());
-    if (telegramp4_wifi_wait_connected(CONFIG_TELEGRAMP4_WIFI_CONNECT_TIMEOUT_MS)) {
-        char ip[16] = {0};
-        telegramp4_wifi_get_ip_str(ip, sizeof(ip));
-        ESP_LOGI(TAG, "Boot WiFi connect succeeded, IP: %s", ip);
-    } else {
-        ESP_LOGW(TAG, "Boot WiFi connect timed out; will keep retrying in the background.");
-    }
-
+    /*
+     * Init order matters a lot on this board (2026-09-10 findings) - three
+     * hardware subsystems compete for shared, limited resources:
+     *
+     * 1. Camera's hardware JPEG encoder needs a GDMA channel. Init it FIRST
+     *    so it always gets one.
+     * 2. SD card (SDMMC host slot 0) and the ESP32-C6 WiFi link (SDIO on the
+     *    same shared SDMMC/SDIO host peripheral, slot 1) sit on the same
+     *    underlying controller. A DFRobot-official MicroPython test using
+     *    these exact pins/slot mounted the card cleanly when nothing else
+     *    had touched the host peripheral first - proving the SD mount
+     *    failures we saw for days were never a hardware fault on the card
+     *    or socket, but WiFi's SDIO init running first and leaving shared
+     *    host state that slot 0 couldn't recover from. So: mount SD before
+     *    starting WiFi. See docs/lessons/07-microsd.md.
+     */
     esp_err_t camera_ret = telegramp4_camera_init();
     if (camera_ret != ESP_OK) {
         ESP_LOGW(TAG, "Camera not available: %s (device continues without it)", esp_err_to_name(camera_ret));
@@ -1182,6 +1189,16 @@ extern "C" void app_main(void)
     if (storage_ret != ESP_OK) {
         ESP_LOGW(TAG, "SD card not available: %s (device continues without it)", esp_err_to_name(storage_ret));
     }
+
+    ESP_ERROR_CHECK(telegramp4_wifi_init());
+    if (telegramp4_wifi_wait_connected(CONFIG_TELEGRAMP4_WIFI_CONNECT_TIMEOUT_MS)) {
+        char ip[16] = {0};
+        telegramp4_wifi_get_ip_str(ip, sizeof(ip));
+        ESP_LOGI(TAG, "Boot WiFi connect succeeded, IP: %s", ip);
+    } else {
+        ESP_LOGW(TAG, "Boot WiFi connect timed out; will keep retrying in the background.");
+    }
+
     telegramp4_telegram_register_command("/files", handler_files);
     telegramp4_telegram_register_command("/storage", handler_storage);
     telegramp4_telegram_register_command("/delete", handler_delete);

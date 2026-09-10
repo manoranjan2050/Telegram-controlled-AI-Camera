@@ -19,7 +19,7 @@ Product page: https://www.dfrobot.com/product-2915.html
 
 Track progress here so a new session knows where to resume.
 
-**Real hardware test log (2026-09-09, FireBeetle 2 ESP32-P4 DFR1172):**
+**Real hardware test log (2026-09-10, FireBeetle 2 ESP32-P4 DFR1172):**
 - ✅ WiFi connects reliably (`esp_wifi_remote` over SDIO to the C6)
 - ✅ Telegram bot connects and responds (`@ESP3P4AIbot`), button menu works
 - ✅ **PSRAM boot-loop FIXED.** Root cause: with `CONFIG_SPIRAM=y`, the
@@ -43,11 +43,19 @@ Track progress here so a new session knows where to resume.
   (defaults to `n` in the `espressif/esp_video` managed component's own
   Kconfig) — without it, `/dev/video10` (`ESP_VIDEO_JPEG_DEVICE_NAME`) is
   never registered at all, regardless of PSRAM.
-- ❌ SD card still fails to mount (`ESP_ERR_TIMEOUT`/`0x107`) even after
-  driving the power-gate GPIO45 low — see docs/lessons/07-microsd.md and
-  the note in docs/hardware.md; next things to try: longer power-on delay,
-  opposite GPIO45 polarity, or GPIO45 may be internally reserved by the
-  in-package PSRAM on the NRW32 variant and not usable as a plain GPIO
+- ✅ **SD card mount FIXED — was never a hardware defect.** Days of
+  `send_op_cond (1) returned 0x107` failures survived pin fixes, host-slot
+  separation, power-gate polarity (both directions), and pull-ups — all
+  real fixes, none of which touched the actual bug. Root cause: WiFi's SDIO
+  init (slot 1) and the SD card (slot 0) share one physical SDMMC/SDIO host
+  controller, and WiFi always started first, leaving shared host state SD's
+  own init couldn't recover from. Proved by flashing DFRobot's own official
+  MicroPython factory test for this board (identical pins) with WiFi never
+  touched — the card mounted instantly. Fixed by reordering `app_main()`:
+  camera → SD → WiFi (see `main/app_main.cpp`). Getting all three to
+  actually succeed together then exposed `CONFIG_VFS_MAX_COUNT` (default 8)
+  filling up before lwip's socket range could register — raised to 16.
+  See docs/hardware.md and docs/lessons/07-microsd.md for the full story.
 - ✅ **Real audio recording works.** Mic pins confirmed from the schematic
   (PDM_DATA=GPIO9, PDM_CLK=GPIO12). `telegramp4_audio_record()` uses
   ESP-IDF's I2S PDM RX driver, returns a WAV file in a heap buffer (same

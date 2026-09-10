@@ -3,6 +3,34 @@
 All notable changes to this project are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - 2026-09-10 (real hardware, round 4: SD card fixed - it was never hardware)
+
+### Fixed
+- **SD card mount, root-caused and fixed - was never a hardware defect.**
+  `sdmmc_init_ocr: send_op_cond (1) returned 0x107` survived four rounds of
+  real firmware fixes (correct pins, correct host slot, power-gate polarity
+  both directions, hardware pull-ups) and two different physical microSD
+  cards (one PC-verified healthy, freshly FAT32-formatted) with zero change
+  in behavior. Root-caused by flashing DFRobot's own official MicroPython
+  factory test for this exact board
+  (wiki.dfrobot.com/dfr1172/docs/22904, identical pins/slot) - with WiFi
+  never touched, the card mounted instantly. The SD card (SDMMC host slot
+  0) and the ESP32-C6 WiFi link (SDIO, slot 1) share one physical
+  SDMMC/SDIO host controller; `app_main()` always started WiFi first,
+  leaving shared host state slot 0's own init could never recover from.
+  Fixed by reordering `main/app_main.cpp`: camera → SD → WiFi. Confirmed
+  live: all three now succeed together in the same boot, first time ever.
+- Getting camera + SD + WiFi to all succeed together surfaced a second,
+  unrelated bug: `CONFIG_VFS_MAX_COUNT` (default 8) is a fixed-size table
+  of *registered VFS backends*, not open files - stdio/eventfd, the
+  camera's two `/dev/videoN` device nodes, and the SD FATFS mount filled it
+  before lwip could register its socket range when WiFi started, aborting
+  with `ESP_ERR_NO_MEM`. Raised to 16 in `sdkconfig.defaults`.
+- Lowered `telegramp4_storage`'s FATFS `max_files` from 8 to 3 (the app
+  never has more than 1-2 files open at once) while investigating the
+  above - kept as a minor cleanup even though it turned out not to be the
+  actual fix.
+
 ## [Unreleased] - 2026-09-09 (real hardware, round 3: PSRAM fixed, camera works)
 
 ### Fixed

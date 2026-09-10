@@ -33,7 +33,18 @@ esp_err_t telegramp4_storage_init(void)
 {
     esp_vfs_fat_mount_config_t mount_config = {
         .format_if_mount_failed = false, /* never silently reformat a user's card */
-        .max_files = 8,
+        /*
+         * Lowered from 8 (2026-09-10): the global VFS file-descriptor table
+         * is shared across every VFS user - stdio, the camera's video device
+         * nodes, this FATFS mount, and lwip's socket range
+         * (CONFIG_LWIP_MAX_SOCKETS). Once the camera and SD init order fix
+         * let both actually succeed at boot for the first time, their
+         * combined FD usage pushed lwip's own socket-range registration
+         * over the shared table's limit (`esp_vfs_lwip_sockets_register`
+         * aborting with ESP_ERR_NO_MEM). The app never opens more than 1-2
+         * files at once, so 8 was never needed.
+         */
+        .max_files = 3,
         .allocation_unit_size = 16 * 1024,
     };
 

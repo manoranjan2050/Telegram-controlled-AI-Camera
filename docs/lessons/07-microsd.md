@@ -44,16 +44,58 @@ board was always correctly powered and correctly pulled-up, which is
 exactly why changing either in software produced zero difference. This
 isn't a guess anymore; it's read directly off the circuit.
 
-Four independent firmware variables now tried (pins, slot, power-gate
-polarity x2, pull-ups), two of them now proven redundant by the schematic
-itself, all producing the exact same `send_op_cond` timeout at the exact
-same point. A fully powered, fully pulled-up bus that still won't answer
-the very first card-identification command is not something firmware can
-fix - it points to no card actually being seated, a dead/incompatible card,
-or a physical defect on the socket. See [docs/hardware.md](../hardware.md)
-for what to check next (try a different known-good FAT32 card; if still
-failing, probe the socket's pins with a multimeter/oscilloscope while
-booting) — these all require physical access to the board.
+Four independent firmware variables tried (pins, slot, power-gate polarity
+x2, pull-ups), two of them proven redundant by the schematic itself, all
+produced the exact same `send_op_cond` timeout at the exact same point —
+strong enough evidence at the time to suspect a physical problem (bad
+card, bad socket) that firmware couldn't fix. The user tried a second,
+freshly-FAT32-formatted, PC-verified-healthy card. **Identical failure.**
+
+## ✅ SOLVED 2026-09-10 — it was never hardware. It was init order.
+
+The user asked directly whether an official factory/vendor test existed to
+check independently. DFRobot publishes exactly that: an official
+MicroPython example for this board
+([wiki.dfrobot.com/dfr1172/docs/22904](https://wiki.dfrobot.com/dfr1172/docs/22904))
+using the identical pins/slot (`SDCard(slot=0, width=4, sck=43, cmd=44,
+data=(39,40,41,42), freq=40000000)`). Flashing MicroPython (v1.29.0,
+`ESP32_GENERIC_P4-PRE_REV3_C6_WIFI` build, matching this board's chip
+revision v1.0 and C6 coprocessor) and running that exact script mounted
+the card cleanly on the first try:
+
+```
+>>> print(os.listdir('/sd'))
+['System Volume Information']
+```
+
+With WiFi never touched, the card that had "failed" through four rounds of
+firmware changes and two different physical cards worked instantly. That
+one data point reframed everything: the SD card (slot 0) and the ESP32-C6
+WiFi link (SDIO on slot 1) share **the same physical SDMMC/SDIO host
+controller**. This project's `app_main()` always called
+`telegramp4_wifi_init()` before `telegramp4_storage_init()` — WiFi's SDIO
+bring-up was leaving shared host-peripheral state that slot 0's own init
+could never recover from, producing an identical, unmoving failure
+regardless of pins, power, or pull-ups, because none of those were ever
+the actual problem.
+
+**Fix**: reorder `app_main()` to mount SD *before* starting WiFi (and
+init the camera before either, since it needs its own DMA channel - see
+the comment in `main/app_main.cpp`). Confirmed live: camera, SD, and WiFi
+all now succeed in the same boot.
+
+Getting all three to succeed together for the first time surfaced a
+second, separate bug: `CONFIG_VFS_MAX_COUNT` (default 8) is a fixed-size
+table of *registered VFS backends* (not open files) - stdio/eventfd, the
+camera's two `/dev/videoN` device nodes, and the SD FATFS mount filled it
+up before lwip could register its own socket range when WiFi started,
+aborting with `ESP_ERR_NO_MEM`. Raised to 16 in `sdkconfig.defaults`.
+
+**Lesson for next time**: when a peripheral fails identically across every
+plausible fix, check what else shares its underlying hardware block and
+what order things initialize in - not just the peripheral's own pins and
+power. And when in doubt, an official vendor test using different code
+entirely is worth more than another round of guessing.
 
 <details>
 <summary>Original 2026-09-06 note (kept for history)</summary>
